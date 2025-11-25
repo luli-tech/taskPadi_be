@@ -14,7 +14,6 @@ use axum::{
     Extension, Json,
 };
 use futures::stream::{Stream, StreamExt};
-use sqlx::query_as;
 use std::convert::Infallible;
 use uuid::Uuid;
 
@@ -33,12 +32,7 @@ pub async fn get_notifications(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
 ) -> Result<Json<Vec<Notification>>> {
-    let notifications = query_as::<_, Notification>(
-        "SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC"
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await?;
+    let notifications = state.notification_repository.find_all_by_user(user_id).await?;
 
     Ok(Json(notifications))
 }
@@ -97,14 +91,9 @@ pub async fn mark_notification_read(
     Extension(user_id): Extension<Uuid>,
     Path(notification_id): Path<Uuid>,
 ) -> Result<Json<Notification>> {
-    let notification = query_as::<_, Notification>(
-        "UPDATE notifications SET is_read = true WHERE id = $1 AND user_id = $2 RETURNING *"
-    )
-    .bind(notification_id)
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Notification not found".to_string()))?;
+    let notification = state.notification_repository.mark_as_read(notification_id, user_id)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Notification not found".to_string()))?;
 
     Ok(Json(notification))
 }
@@ -129,13 +118,9 @@ pub async fn delete_notification(
     Extension(user_id): Extension<Uuid>,
     Path(notification_id): Path<Uuid>,
 ) -> Result<StatusCode> {
-    let result = sqlx::query("DELETE FROM notifications WHERE id = $1 AND user_id = $2")
-        .bind(notification_id)
-        .bind(user_id)
-        .execute(&state.db)
-        .await?;
+    let rows_affected = state.notification_repository.delete(notification_id, user_id).await?;
 
-    if result.rows_affected() == 0 {
+    if rows_affected == 0 {
         return Err(AppError::NotFound("Notification not found".to_string()));
     }
 
@@ -159,11 +144,7 @@ pub async fn update_notification_preferences(
     Extension(user_id): Extension<Uuid>,
     Json(payload): Json<UpdateNotificationPreferencesRequest>,
 ) -> Result<StatusCode> {
-    sqlx::query("UPDATE users SET notification_enabled = $1 WHERE id = $2")
-        .bind(payload.notification_enabled)
-        .bind(user_id)
-        .execute(&state.db)
-        .await?;
+    state.user_repository.update_notification_preferences(user_id, payload.notification_enabled).await?;
 
     Ok(StatusCode::OK)
 }

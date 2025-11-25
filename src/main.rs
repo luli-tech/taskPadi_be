@@ -60,6 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create repositories
     let user_repository = crate::repositories::user_repository::UserRepository::new(db.clone());
     let task_repository = crate::repositories::task_repository::TaskRepository::new(db.clone());
+    let notification_repository = crate::repositories::notification_repository::NotificationRepository::new(db.clone());
 
     // Create application state
     let state = AppState {
@@ -69,12 +70,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notification_tx: notification_tx.clone(),
         user_repository,
         task_repository,
+        notification_repository,
     };
 
     // Start notification service
-    let notification_db = db.clone();
+    let notification_state = state.clone();
     tokio::spawn(async move {
-        if let Err(e) = start_notification_service(notification_db, notification_tx).await {
+        if let Err(e) = start_notification_service(notification_state).await {
             tracing::error!("Notification service error: {:?}", e);
         }
     });

@@ -203,4 +203,29 @@ impl TaskRepository {
 
         Ok(task)
     }
+
+
+    pub async fn find_due_reminders(&self) -> Result<Vec<Task>> {
+        let now = Utc::now();
+        let tasks = sqlx::query_as::<_, Task>(
+            "SELECT * FROM tasks 
+             WHERE reminder_time <= $1 
+             AND notified = false 
+             AND reminder_time IS NOT NULL"
+        )
+        .bind(now)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(tasks)
+    }
+
+    pub async fn mark_as_notified(&self, id: Uuid) -> Result<()> {
+        sqlx::query("UPDATE tasks SET notified = true WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
 }

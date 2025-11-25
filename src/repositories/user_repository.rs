@@ -58,4 +58,14 @@ impl UserRepository {
 
         Ok(user)
     }
+
+    pub async fn update_notification_preferences(&self, user_id: Uuid, enabled: bool) -> Result<()> {
+        sqlx::query("UPDATE users SET notification_enabled = $1 WHERE id = $2")
+            .bind(enabled)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
 }

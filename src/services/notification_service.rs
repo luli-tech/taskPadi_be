@@ -1,23 +1,18 @@
-use crate::{db::DbPool, models::Task};
-use chrono::Utc;
-use sqlx::query_as;
-use tokio::sync::broadcast;
+use crate::state::AppState;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::{error, info};
 
 pub async fn start_notification_service(
-    db: DbPool,
-    notification_tx: broadcast::Sender<String>,
+    state: AppState,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let scheduler = JobScheduler::new().await?;
 
     // Run every minute to check for tasks with upcoming reminders
     let job = Job::new_async("0 * * * * *", move |_uuid, _l| {
-        let db = db.clone();
-        let tx = notification_tx.clone();
+        let state = state.clone();
 
         Box::pin(async move {
-            if let Err(e) = check_and_send_notifications(db, tx).await {
+            if let Err(e) = check_and_send_notifications(state).await {
                 error!("Error checking notifications: {:?}", e);
             }
         })
@@ -31,21 +26,10 @@ pub async fn start_notification_service(
 }
 
 async fn check_and_send_notifications(
-    db: DbPool,
-    tx: broadcast::Sender<String>,
+    state: AppState,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let now = Utc::now();
-
     // Find tasks with reminders that are due and haven't been notified yet
-    let tasks = query_as::<_, Task>(
-        "SELECT * FROM tasks 
-         WHERE reminder_time <= $1 
-         AND notified = false 
-         AND reminder_time IS NOT NULL"
-    )
-    .bind(now)
-    .fetch_all(&db)
-    .await?;
+    let tasks = state.task_repository.find_due_reminders().await?;
 
     for task in tasks {
         // Create notification in database
@@ -54,21 +38,14 @@ async fn check_and_send_notifications(
             task.title
         );
 
-        sqlx::query(
-            "INSERT INTO notifications (user_id, task_id, message)
-             VALUES ($1, $2, $3)"
-        )
-        .bind(task.user_id)
-        .bind(task.id)
-        .bind(&notification_message)
-        .execute(&db)
-        .await?;
+        state.notification_repository.create(
+            task.user_id,
+            Some(task.id),
+            &notification_message,
+        ).await?;
 
         // Mark task as notified
-        sqlx::query("UPDATE tasks SET notified = true WHERE id = $1")
-            .bind(task.id)
-            .execute(&db)
-            .await?;
+        state.task_repository.mark_as_notified(task.id).await?;
 
         // Broadcast to SSE clients
         let broadcast_message = format!(
@@ -77,7 +54,7 @@ async fn check_and_send_notifications(
             notification_message
         );
         
-        let _ = tx.send(broadcast_message);
+        let _ = state.notification_tx.send(broadcast_message);
         
         info!("Sent notification for task: {}", task.title);
     }
