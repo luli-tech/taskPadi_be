@@ -39,15 +39,15 @@ jobs:
 
       - name: Migrate database
         run: |
-          export DATABASE_URL=postgresql://task_manager_f1az_user:gYWu3GNPdCwnLkYM6IfHV5Jmv2wnEWhM@dpg-d4j31e8bdp1s73fkrj0g-a.oregon-postgres.render.com/task_manager_f1az
+          export DATABASE_URL=postgresql://postgres:password@localhost:5432/task_manager
           sqlx migrate run
 
       - name: Check
         run: |
-          export DATABASE_URL=postgresql://task_manager_f1az_user:gYWu3GNPdCwnLkYM6IfHV5Jmv2wnEWhM@dpg-d4j31e8bdp1s73fkrj0g-a.oregon-postgres.render.com/task_manager_f1az
+          export DATABASE_URL=postgresql://postgres:password@localhost:5432/task_manager
           cargo check --verbose
 
       - name: Run tests
         run: |
-          export DATABASE_URL=postgresql://task_manager_f1az_user:gYWu3GNPdCwnLkYM6IfHV5Jmv2wnEWhM@dpg-d4j31e8bdp1s73fkrj0g-a.oregon-postgres.render.com/task_manager_f1az
+          export DATABASE_URL=postgresql://postgres:password@localhost:5432/task_manager
           cargo test --verbose
