@@ -3,7 +3,7 @@ use crate::{
     task::task_repository::TaskRepository,
     user::{
         user_dto::{UpdateProfileRequest, UserStatsResponse},
-        user_models::{User, UserResponse},
+        user_models::UserResponse,
         user_repository::UserRepository,
     },
 };
@@ -34,6 +34,22 @@ impl UserService {
     }
 
     pub async fn update_current_user(
+        &self,
+        user_id: Uuid,
+        payload: UpdateProfileRequest,
+    ) -> Result<UserResponse> {
+        let user = self
+            .user_repository
+            .update_profile(user_id, payload.bio, payload.theme, payload.avatar_url, None)
+            .await?;
+
+        Ok(UserResponse::from(user))
+    }
+
+    pub async fn get_user_stats(&self, user_id: Uuid) -> Result<UserStatsResponse> {
+        let (
+            total_tasks,
+            pending_tasks,
             in_progress_tasks,
             completed_tasks,
             archived_tasks,
