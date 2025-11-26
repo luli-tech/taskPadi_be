@@ -2,7 +2,7 @@ use crate::error::Result;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
-use super::models::RefreshToken;
+use super::auth_models::RefreshToken;
 
 #[derive(Clone)]
 pub struct RefreshTokenRepository {

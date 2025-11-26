@@ -48,7 +48,35 @@ impl UserService {
     }
 
     pub async fn get_user_stats(&self, user_id: Uuid) -> Result<UserStatsResponse> {
-        let stats = self.task_repository.get_user_stats(user_id).await?;
-        Ok(stats)
+        let (
+            total_tasks,
+            pending_tasks,
+            in_progress_tasks,
+            completed_tasks,
+            archived_tasks,
+            low_priority_tasks,
+            medium_priority_tasks,
+            high_priority_tasks,
+            urgent_priority_tasks,
+        ) = self.task_repository.get_user_stats(user_id).await?;
+
+        let completion_rate = if total_tasks > 0 {
+            (completed_tasks as f64 / total_tasks as f64) * 100.0
+        } else {
+            0.0
+        };
+
+        Ok(UserStatsResponse {
+            total_tasks,
+            pending_tasks,
+            in_progress_tasks,
+            completed_tasks,
+            archived_tasks,
+            completion_rate,
+            low_priority_tasks,
+            medium_priority_tasks,
+            high_priority_tasks,
+            urgent_priority_tasks,
+        })
     }
 }

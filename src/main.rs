@@ -64,11 +64,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (task_tx, _) = broadcast::channel(100);
 
     // Create repositories
-    let user_repository = crate::user::repository::UserRepository::new(db.clone());
-    let task_repository = crate::task::repository::TaskRepository::new(db.clone());
-    let notification_repository = crate::notification::repository::NotificationRepository::new(db.clone());
-    let message_repository = crate::message::repository::MessageRepository::new(db.clone());
-    let refresh_token_repository = crate::auth::repository::RefreshTokenRepository::new(db.clone());
+    let user_repository = crate::user::user_repository::UserRepository::new(db.clone());
+    let task_repository = crate::task::task_repository::TaskRepository::new(db.clone());
+    let notification_repository = crate::notification::notification_repository::NotificationRepository::new(db.clone());
+    let message_repository = crate::message::message_repository::MessageRepository::new(db.clone());
+    let refresh_token_repository = crate::auth::auth_repository::RefreshTokenRepository::new(db.clone());
+
+    // Create services
+    let user_service = crate::user::user_service::UserService::new(
+        user_repository.clone(),
+        task_repository.clone(),
+    );
+    let task_service = crate::task::task_service::TaskService::new(task_repository.clone());
+    let auth_service = crate::auth::auth_service::AuthService::new(
+        user_repository.clone(),
+        refresh_token_repository.clone(),
+        config.jwt_secret.clone(),
+    );
+    let message_service = crate::message::message_service::MessageService::new(message_repository.clone());
 
     // Create application state
     let state = AppState {
@@ -83,6 +96,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         task_repository,
         notification_repository,
         message_repository,
+        user_service,
+        task_service,
+        auth_service,
+        message_service,
     };
 
     // Start notification service

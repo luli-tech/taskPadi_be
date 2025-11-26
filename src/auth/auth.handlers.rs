@@ -4,9 +4,9 @@ use crate::{
     },
     error::{AppError, Result},
     state::AppState,
-    user::models::UserResponse,
+    user::user_models::UserResponse,
 };
-use super::dto::{AuthResponse, LoginRequest, RegisterRequest, RefreshTokenRequest, RefreshTokenResponse};
+use super::auth_dto::{AuthResponse, LoginRequest, RegisterRequest, RefreshTokenRequest, RefreshTokenResponse};
 use axum::{extract::{State, Query}, http::StatusCode, response::{IntoResponse, Redirect}, Json};
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope, AuthorizationCode, TokenResponse};
 use serde::Deserialize;

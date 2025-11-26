@@ -1,3 +1,3 @@
-pub mod middleware;
+pub mod admin_middleware;
 
-pub use middleware::admin_middleware;
+pub use admin_middleware::admin_authorization;

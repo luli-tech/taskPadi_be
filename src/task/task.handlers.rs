@@ -15,8 +15,8 @@ use crate::{
     state::AppState,
 };
 use super::{
-    dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest, PaginatedResponse},
-    models::Task,
+    task_dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest, PaginatedResponse},
+    task_models::Task,
 };
 
 #[derive(Deserialize)]

@@ -2,7 +2,7 @@ use crate::error::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
 use chrono::{DateTime, Utc};
-use super::models::Task;
+use super::task_models::Task;
 
 #[derive(Clone)]
 pub struct TaskRepository {

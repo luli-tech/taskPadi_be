@@ -24,7 +24,7 @@ pub struct LoginRequest {
 pub struct AuthResponse {
     pub access_token: String,
     pub refresh_token: String,
-    pub user: crate::user::models::UserResponse,
+    pub user: crate::user::user_models::UserResponse,
 }
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
