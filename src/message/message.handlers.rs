@@ -16,13 +16,13 @@ use validator::Validate;
 
 use crate::{
     error::{AppError, Result},
-    middleware::auth::AuthUser,
+    middleware::AuthUser,
     state::AppState,
-    task::dto::PaginatedResponse, // Reusing PaginatedResponse from task module or shared
-};
-use super::{
-    dto::{ConversationUser, SendMessageRequest},
-    models::{Message, MessageResponse},
+    task::task_dto::PaginatedResponse,
+    message::{
+        message_dto::{ConversationUser, SendMessageRequest},
+        message_models::{Message, MessageResponse},
+    },
 };
 
 #[derive(Debug, Deserialize)]

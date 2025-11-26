@@ -7,13 +7,13 @@ use axum::{
 use validator::Validate;
 
 use crate::{
-    error::{AppError, Result},
-    middleware::auth::AuthUser,
+    error::Result,
+    middleware::AuthUser,
     state::AppState,
-};
-use super::{
-    user_dto::{UpdateProfileRequest, UserStatsResponse},
-    user_models::UserResponse,
+    user::{
+        user_dto::UpdateProfileRequest,
+        user_service::UserService,
+    },
 };
 
 /// Get current user profile
@@ -22,7 +22,7 @@ use super::{
     path = "/api/users/me",
     tag = "users",
     responses(
-        (status = 200, description = "User profile retrieved successfully", body = UserResponse),
+        (status = 200, description = "User profile retrieved successfully"),
         (status = 401, description = "Unauthorized")
     ),
     security(
@@ -48,7 +48,7 @@ pub async fn get_current_user(
     tag = "users",
     request_body = UpdateProfileRequest,
     responses(
-        (status = 200, description = "Profile updated successfully", body = UserResponse),
+        (status = 200, description = "Profile updated successfully"),
         (status = 400, description = "Invalid input"),
         (status = 401, description = "Unauthorized")
     ),
@@ -77,7 +77,7 @@ pub async fn update_current_user(
     path = "/api/users/me/stats",
     tag = "users",
     responses(
-        (status = 200, description = "User statistics retrieved successfully", body = UserStatsResponse),
+        (status = 200, description = "User statistics retrieved successfully"),
         (status = 401, description = "Unauthorized")
     ),
     security(

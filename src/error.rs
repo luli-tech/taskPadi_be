@@ -23,11 +23,20 @@ pub enum AppError {
     #[error("Unauthorized")]
     Unauthorized,
 
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
+
     #[error("Internal server error")]
     InternalError,
 
     #[error("Bad request: {0}")]
     BadRequest(String),
+}
+
+impl From<validator::ValidationErrors> for AppError {
+    fn from(err: validator::ValidationErrors) -> Self {
+        AppError::Validation(err.to_string())
+    }
 }
 
 impl IntoResponse for AppError {
@@ -41,6 +50,7 @@ impl IntoResponse for AppError {
             AppError::Validation(ref msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
             AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, msg.as_str()),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized"),
+            AppError::Forbidden(ref msg) => (StatusCode::FORBIDDEN, msg.as_str()),
             AppError::InternalError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
             }

@@ -20,7 +20,7 @@ impl MessageService {
         payload: SendMessageRequest,
     ) -> Result<Message> {
         self.repo
-            .create(sender_id, payload.receiver_id, &payload.content)
+            .create(sender_id, payload.receiver_id, &payload.content, None)
             .await
     }
 
@@ -29,11 +29,11 @@ impl MessageService {
         user_id: Uuid,
         other_user_id: Uuid,
     ) -> Result<Vec<Message>> {
-        self.repo.find_conversation(user_id, other_user_id).await
+        self.repo.find_conversation(user_id, other_user_id, 100, 0).await
     }
 
     pub async fn get_conversations(&self, user_id: Uuid) -> Result<Vec<crate::message::message_dto::ConversationUser>> {
-        self.repo.find_conversations(user_id).await
+        self.repo.find_user_conversations(user_id).await
     }
 
     pub async fn mark_read(&self, user_id: Uuid, message_id: Uuid) -> Result<()> {

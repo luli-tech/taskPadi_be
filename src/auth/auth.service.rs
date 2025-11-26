@@ -1,10 +1,9 @@
 use crate::error::Result;
 use crate::auth::auth_repository::RefreshTokenRepository;
-use crate::auth::auth_models::RefreshToken;
 use crate::auth::{create_access_token, create_refresh_token, verify_jwt, hash_password, verify_password};
 use crate::user::user_repository::UserRepository;
 use crate::user::user_models::User;
-use uuid::Uuid;
+use chrono::{Duration, Utc};
 
 #[derive(Clone)]
 pub struct AuthService {
@@ -35,11 +34,12 @@ impl AuthService {
         let password_hash = hash_password(password)?;
         let user = self.user_repo.create(username, email, &password_hash).await?;
         
-        let access_token = create_access_token(user.id, &user.role, &self.jwt_secret)?;
-        let refresh_token = create_refresh_token(user.id, &user.role, &self.jwt_secret)?;
+        let access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        let refresh_token = create_refresh_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
         
+        let expires_at = Utc::now() + Duration::days(7);
         self.refresh_token_repo
-            .create(user.id, &refresh_token)
+            .create(user.id, &refresh_token, expires_at)
             .await?;
 
         Ok((user, access_token, refresh_token))
@@ -50,21 +50,20 @@ impl AuthService {
             .user_repo
             .find_by_email(email)
             .await?
-            .ok_or_else(|| crate::error::AppError::Unauthorized("Invalid credentials".into()))?;
+            .ok_or_else(|| crate::error::AppError::Unauthorized)?;
 
         if let Some(ref password_hash) = user.password_hash {
             verify_password(password, password_hash)?;
         } else {
-            return Err(crate::error::AppError::Unauthorized(
-                "Invalid credentials".into(),
-            ));
+            return Err(crate::error::AppError::Unauthorized);
         }
 
-        let access_token = create_access_token(user.id, &user.role, &self.jwt_secret)?;
-        let refresh_token = create_refresh_token(user.id, &user.role, &self.jwt_secret)?;
+        let access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        let refresh_token = create_refresh_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
 
+        let expires_at = Utc::now() + Duration::days(7);
         self.refresh_token_repo
-            .create(user.id, &refresh_token)
+            .create(user.id, &refresh_token, expires_at)
             .await?;
 
         Ok((user, access_token, refresh_token))
@@ -77,28 +76,27 @@ impl AuthService {
             .refresh_token_repo
             .find_by_token(refresh_token)
             .await?
-            .ok_or_else(|| crate::error::AppError::Unauthorized("Invalid refresh token".into()))?;
+            .ok_or_else(|| crate::error::AppError::Unauthorized)?;
 
-        if stored_token.revoked {
-            return Err(crate::error::AppError::Unauthorized(
-                "Token has been revoked".into(),
-            ));
-        }
+        let user_id = uuid::Uuid::parse_str(&claims.sub)
+            .map_err(|_| crate::error::AppError::Unauthorized)?;
 
         let user = self
             .user_repo
-            .find_by_id(claims.sub)
+            .find_by_id(user_id)
             .await?
             .ok_or_else(|| crate::error::AppError::NotFound("User not found".into()))?;
 
-        let new_access_token = create_access_token(user.id, &user.role, &self.jwt_secret)?;
-        let new_refresh_token = create_refresh_token(user.id, &user.role, &self.jwt_secret)?;
+        let new_access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        let new_refresh_token = create_refresh_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
 
         self.refresh_token_repo
-            .revoke_by_token(refresh_token)
+            .delete_by_token(refresh_token)
             .await?;
+        
+        let expires_at = Utc::now() + Duration::days(7);
         self.refresh_token_repo
-            .create(user.id, &new_refresh_token)
+            .create(user.id, &new_refresh_token, expires_at)
             .await?;
 
         Ok((new_access_token, new_refresh_token))
@@ -106,7 +104,7 @@ impl AuthService {
 
     pub async fn logout(&self, refresh_token: &str) -> Result<()> {
         self.refresh_token_repo
-            .revoke_by_token(refresh_token)
+            .delete_by_token(refresh_token)
             .await
     }
 
@@ -122,11 +120,12 @@ impl AuthService {
             .upsert_google_user(username, email, google_id, avatar_url)
             .await?;
 
-        let access_token = create_access_token(user.id, &user.role, &self.jwt_secret)?;
-        let refresh_token = create_refresh_token(user.id, &user.role, &self.jwt_secret)?;
+        let access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        let refresh_token = create_refresh_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
 
+        let expires_at = Utc::now() + Duration::days(7);
         self.refresh_token_repo
-            .create(user.id, &refresh_token)
+            .create(user.id, &refresh_token, expires_at)
             .await?;
 
         Ok((user, access_token, refresh_token))

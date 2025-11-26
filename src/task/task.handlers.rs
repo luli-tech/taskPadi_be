@@ -58,7 +58,7 @@ pub async fn get_tasks(
     let page = filters.page.unwrap_or(1);
     let limit = filters.limit.unwrap_or(10);
 
-    let repo_filters = crate::task::repository::TaskFilters {
+    let repo_filters = crate::task::task_repository::TaskFilters {
         status: filters.status,
         priority: filters.priority,
         search: filters.search,

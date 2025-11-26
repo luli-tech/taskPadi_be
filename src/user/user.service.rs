@@ -34,23 +34,6 @@ impl UserService {
     }
 
     pub async fn update_current_user(
-        &self,
-        user_id: Uuid,
-        payload: UpdateProfileRequest,
-    ) -> Result<UserResponse> {
-        let user = self
-            .user_repository
-            .update_profile(user_id, payload.bio, payload.theme, payload.avatar_url)
-            .await?
-            .ok_or_else(|| crate::error::AppError::NotFound("User not found".to_string()))?;
-
-        Ok(user.into())
-    }
-
-    pub async fn get_user_stats(&self, user_id: Uuid) -> Result<UserStatsResponse> {
-        let (
-            total_tasks,
-            pending_tasks,
             in_progress_tasks,
             completed_tasks,
             archived_tasks,

@@ -1,10 +1,11 @@
 use crate::{auth::verify_jwt, error::AppError, state::AppState};
 use axum::{
     body::Body,
-    extract::State,
-    http::{Request, StatusCode},
+    extract::{State, FromRequestParts},
+    http::{Request, request::Parts},
     middleware::Next,
     response::Response,
+    async_trait,
 };
 use uuid::Uuid;
 
@@ -31,4 +32,24 @@ pub async fn auth_middleware(
     req.extensions_mut().insert(user_id);
     
     Ok(next.run(req).await)
+}
+
+// Extractor for getting user_id from request extensions
+pub struct AuthUser(pub Uuid);
+
+#[async_trait]
+impl<S> FromRequestParts<S> for AuthUser
+where
+    S: Send + Sync,
+{
+    type Rejection = AppError;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts
+            .extensions
+            .get::<Uuid>()
+            .copied()
+            .map(AuthUser)
+            .ok_or(AppError::Unauthorized)
+    }
 }

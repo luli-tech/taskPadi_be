@@ -14,10 +14,11 @@ use uuid::Uuid;
 use crate::{
     error::{AppError, Result},
     state::AppState,
-};
-use super::{
-    dto::UpdateNotificationPreferencesRequest,
-    models::Notification,
+    middleware::AuthUser,
+    notification::{
+        notification_dto::UpdateNotificationPreferencesRequest,
+        notification_models::Notification,
+    },
 };
 
 /// Get all notifications for the authenticated user only

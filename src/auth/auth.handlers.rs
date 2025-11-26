@@ -1,6 +1,7 @@
 use crate::{
     auth::{
-        create_access_token, create_refresh_token, create_oauth_client, hash_password, verify_password, GoogleUserInfo, verify_jwt
+        create_access_token, create_refresh_token, create_oauth_client, hash_password, verify_password, verify_jwt,
+        oauth::GoogleUserInfo,
     },
     error::{AppError, Result},
     state::AppState,
