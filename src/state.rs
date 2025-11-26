@@ -3,12 +3,18 @@ use oauth2::basic::BasicClient;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-use crate::repositories::{
-    user_repository::UserRepository,
-    task_repository::TaskRepository,
-    notification_repository::NotificationRepository,
-    message_repository::MessageRepository,
+use crate::{
+    user::repository::UserRepository,
+    task::repository::TaskRepository,
+    notification::repository::NotificationRepository,
+    message::repository::MessageRepository,
+    auth::repository::RefreshTokenRepository,
 };
+
+// Wait, I didn't move RefreshTokenRepository yet. It was created in src/repositories/refresh_token_repository.rs in Step 372.
+// I should probably move it to src/auth/repository.rs or src/user/repository.rs?
+// Or maybe src/auth/repository.rs is better.
+// Let's assume I'll move it to src/auth/repository.rs.
 
 #[derive(Clone)]
 pub struct AppState {
@@ -16,12 +22,13 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub oauth_client: BasicClient,
     pub notification_tx: broadcast::Sender<String>,
-    pub message_tx: broadcast::Sender<(uuid::Uuid, crate::models::Message)>,
-    pub task_tx: broadcast::Sender<(uuid::Uuid, crate::models::Task)>,
+    pub message_tx: broadcast::Sender<(uuid::Uuid, crate::message::models::Message)>,
+    pub task_tx: broadcast::Sender<(uuid::Uuid, crate::task::models::Task)>,
     pub user_repository: UserRepository,
     pub task_repository: TaskRepository,
     pub notification_repository: NotificationRepository,
     pub message_repository: MessageRepository,
+    pub refresh_token_repository: RefreshTokenRepository,
 }
 
 #[derive(Clone)]

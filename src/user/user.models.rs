@@ -15,6 +15,7 @@ pub struct User {
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
     pub theme: String,
+    pub role: String,
     pub notification_enabled: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -28,6 +29,7 @@ pub struct UserResponse {
     pub avatar_url: Option<String>,
     pub bio: Option<String>,
     pub theme: String,
+    pub role: String,
     pub notification_enabled: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -41,6 +43,7 @@ impl From<User> for UserResponse {
             avatar_url: user.avatar_url,
             bio: user.bio,
             theme: user.theme,
+            role: user.role,
             notification_enabled: user.notification_enabled,
             created_at: user.created_at,
         }

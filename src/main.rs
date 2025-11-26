@@ -1,19 +1,19 @@
+mod admin;
 mod auth;
 mod db;
-mod dto;
 mod error;
-mod handlers;
+mod message;
 mod middleware;
-mod models;
-mod repositories;
+mod notification;
 mod routes;
-mod services;
 mod state;
+mod task;
+mod user;
 
 use auth::create_oauth_client;
 use db::{create_pool, run_migrations};
+use notification::service::start_notification_service;
 use routes::create_router;
-use services::start_notification_service;
 use state::{AppState, Config};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -64,10 +64,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (task_tx, _) = broadcast::channel(100);
 
     // Create repositories
-    let user_repository = crate::repositories::user_repository::UserRepository::new(db.clone());
-    let task_repository = crate::repositories::task_repository::TaskRepository::new(db.clone());
-    let notification_repository = crate::repositories::notification_repository::NotificationRepository::new(db.clone());
-    let message_repository = crate::repositories::message_repository::MessageRepository::new(db.clone());
+    let user_repository = crate::user::repository::UserRepository::new(db.clone());
+    let task_repository = crate::task::repository::TaskRepository::new(db.clone());
+    let notification_repository = crate::notification::repository::NotificationRepository::new(db.clone());
+    let message_repository = crate::message::repository::MessageRepository::new(db.clone());
+    let refresh_token_repository = crate::auth::repository::RefreshTokenRepository::new(db.clone());
 
     // Create application state
     let state = AppState {
@@ -77,6 +78,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notification_tx: notification_tx.clone(),
         message_tx: message_tx.clone(),
         task_tx: task_tx.clone(),
+        refresh_token_repository,
         user_repository,
         task_repository,
         notification_repository,

@@ -1,6 +1,7 @@
-use crate::{models::Notification, error::Result};
+use crate::error::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
+use super::models::Notification;
 
 #[derive(Clone)]
 pub struct NotificationRepository {

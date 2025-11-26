@@ -1,21 +1,23 @@
-use crate::{
-    dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest},
-    error::{AppError, Result},
-    models::Task,
-    state::AppState,
-};
 use axum::{
     extract::{Path, Query, State},
-    http::{Request, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, sse::{Event, KeepAlive, Sse}},
     Extension, Json,
 };
 use futures::stream::Stream;
 use serde::Deserialize;
-use sqlx::query_as;
 use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 use uuid::Uuid;
 use validator::Validate;
+
+use crate::{
+    error::{AppError, Result},
+    state::AppState,
+};
+use super::{
+    dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest, PaginatedResponse},
+    models::Task,
+};
 
 #[derive(Deserialize)]
 pub struct TaskFilters {
@@ -52,11 +54,11 @@ pub async fn get_tasks(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
     Query(filters): Query<TaskFilters>,
-) -> Result<Json<crate::dto::PaginatedResponse<Task>>> {
+) -> Result<Json<PaginatedResponse<Task>>> {
     let page = filters.page.unwrap_or(1);
     let limit = filters.limit.unwrap_or(10);
 
-    let repo_filters = crate::repositories::task_repository::TaskFilters {
+    let repo_filters = crate::task::repository::TaskFilters {
         status: filters.status,
         priority: filters.priority,
         search: filters.search,
@@ -70,7 +72,7 @@ pub async fn get_tasks(
 
     let total_pages = (total as f64 / limit as f64).ceil() as u32;
 
-    Ok(Json(crate::dto::PaginatedResponse {
+    Ok(Json(PaginatedResponse {
         data: tasks,
         total,
         page,

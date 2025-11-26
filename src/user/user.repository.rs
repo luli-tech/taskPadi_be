@@ -1,6 +1,7 @@
-use crate::{models::User, error::Result};
+use crate::error::Result;
 use sqlx::PgPool;
 use uuid::Uuid;
+use super::user_models::User;
 
 #[derive(Clone)]
 pub struct UserRepository {

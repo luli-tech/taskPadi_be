@@ -1,9 +1,3 @@
-use crate::{
-    dto::UpdateNotificationPreferencesRequest,
-    error::{AppError, Result},
-    models::Notification,
-    state::AppState,
-};
 use axum::{
     extract::{Path, State},
     http::StatusCode,
@@ -16,6 +10,15 @@ use axum::{
 use futures::stream::{Stream, StreamExt};
 use std::convert::Infallible;
 use uuid::Uuid;
+
+use crate::{
+    error::{AppError, Result},
+    state::AppState,
+};
+use super::{
+    dto::UpdateNotificationPreferencesRequest,
+    models::Notification,
+};
 
 /// Get all notifications for the authenticated user
 #[utoipa::path(

@@ -1,17 +1,17 @@
 use crate::{
-    auth::{create_jwt, create_oauth_client, hash_password, verify_password, GoogleUserInfo},
-    dto::{AuthResponse, LoginRequest, RegisterRequest},
+    auth::{
+        create_access_token, create_refresh_token, create_oauth_client, hash_password, verify_password, GoogleUserInfo, verify_jwt
+    },
     error::{AppError, Result},
-    models::{User, UserResponse},
     state::AppState,
+    user::models::UserResponse,
 };
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Redirect}, Json, extract::Query};
+use super::dto::{AuthResponse, LoginRequest, RegisterRequest, RefreshTokenRequest, RefreshTokenResponse};
+use axum::{extract::{State, Query}, http::StatusCode, response::{IntoResponse, Redirect}, Json};
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope, AuthorizationCode, TokenResponse};
 use serde::Deserialize;
-use sqlx::query_as;
-use utoipa::ToSchema;
-use uuid::Uuid;
 use validator::Validate;
+use chrono::Utc;
 
 #[derive(Deserialize)]
 pub struct GoogleCallback {
@@ -51,17 +51,29 @@ pub async fn register(
             e
         })?;
 
-    let token = create_jwt(
+    let access_token = create_access_token(
         user.id,
         &user.email,
+        &user.role,
         &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
     )?;
+
+    let refresh_token = create_refresh_token(
+        user.id,
+        &user.email,
+        &user.role,
+        &state.config.jwt_secret,
+    )?;
+
+    // Store refresh token
+    let expires_at = Utc::now() + chrono::Duration::days(7);
+    state.refresh_token_repository.create(user.id, &refresh_token, expires_at).await?;
 
     Ok((
         StatusCode::CREATED,
         Json(AuthResponse {
-            token,
+            access_token,
+            refresh_token,
             user: user.into(),
         }),
     ))
@@ -97,17 +109,89 @@ pub async fn login(
         return Err(AppError::Authentication("Invalid credentials".to_string()));
     }
 
-    let token = create_jwt(
+    let access_token = create_access_token(
         user.id,
         &user.email,
+        &user.role,
         &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
     )?;
 
+    let refresh_token = create_refresh_token(
+        user.id,
+        &user.email,
+        &user.role,
+        &state.config.jwt_secret,
+    )?;
+
+    // Store refresh token
+    let expires_at = Utc::now() + chrono::Duration::days(7);
+    state.refresh_token_repository.create(user.id, &refresh_token, expires_at).await?;
+
     Ok(Json(AuthResponse {
-        token,
+        access_token,
+        refresh_token,
         user: user.into(),
     }))
+}
+
+/// Refresh access token
+#[utoipa::path(
+    post,
+    path = "/api/auth/refresh",
+    request_body = RefreshTokenRequest,
+    responses(
+        (status = 200, description = "Token refreshed successfully", body = RefreshTokenResponse),
+        (status = 401, description = "Invalid or expired refresh token")
+    ),
+    tag = "auth"
+)]
+pub async fn refresh_token(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> Result<impl IntoResponse> {
+    // Verify JWT signature
+    let claims = verify_jwt(&payload.refresh_token, &state.config.jwt_secret)?;
+
+    // Check if token exists in DB and is not expired
+    let stored_token = state.refresh_token_repository.find_by_token(&payload.refresh_token)
+        .await?
+        .ok_or(AppError::Authentication("Invalid refresh token".to_string()))?;
+
+    // Get user to get current role
+    let user = state.user_repository.find_by_id(stored_token.user_id)
+        .await?
+        .ok_or(AppError::Authentication("User not found".to_string()))?;
+
+    // Generate new access token
+    let access_token = create_access_token(
+        user.id,
+        &user.email,
+        &user.role,
+        &state.config.jwt_secret,
+    )?;
+
+    Ok(Json(RefreshTokenResponse {
+        access_token,
+    }))
+}
+
+/// Logout (revoke refresh token)
+#[utoipa::path(
+    post,
+    path = "/api/auth/logout",
+    request_body = RefreshTokenRequest,
+    responses(
+        (status = 200, description = "Logged out successfully"),
+        (status = 400, description = "Invalid input")
+    ),
+    tag = "auth"
+)]
+pub async fn logout(
+    State(state): State<AppState>,
+    Json(payload): Json<RefreshTokenRequest>,
+) -> Result<impl IntoResponse> {
+    state.refresh_token_repository.delete_by_token(&payload.refresh_token).await?;
+    Ok(StatusCode::OK)
 }
 
 /// Initiate Google OAuth flow
@@ -158,12 +242,12 @@ pub async fn google_callback(
         .await
         .map_err(|_| AppError::Authentication("Failed to exchange code".to_string()))?;
 
-    let access_token = token_result.access_token().secret();
+    let access_token_google = token_result.access_token().secret();
 
     let client = reqwest::Client::new();
     let user_info: GoogleUserInfo = client
         .get("https://www.googleapis.com/oauth2/v2/userinfo")
-        .bearer_auth(access_token)
+        .bearer_auth(access_token_google)
         .send()
         .await
         .map_err(|_| AppError::Authentication("Failed to get user info".to_string()))?
@@ -178,15 +262,27 @@ pub async fn google_callback(
         user_info.picture.as_deref().unwrap_or(""),
     ).await?;
 
-    let token = create_jwt(
+    let access_token = create_access_token(
         user.id,
         &user.email,
+        &user.role,
         &state.config.jwt_secret,
-        state.config.jwt_expiration_hours,
     )?;
 
+    let refresh_token = create_refresh_token(
+        user.id,
+        &user.email,
+        &user.role,
+        &state.config.jwt_secret,
+    )?;
+
+    // Store refresh token
+    let expires_at = Utc::now() + chrono::Duration::days(7);
+    state.refresh_token_repository.create(user.id, &refresh_token, expires_at).await?;
+
     Ok(Json(AuthResponse {
-        token,
+        access_token,
+        refresh_token,
         user: user.into(),
     }))
 }

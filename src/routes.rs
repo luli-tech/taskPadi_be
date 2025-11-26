@@ -1,16 +1,30 @@
 use crate::{
-    dto::*,
-    handlers::{
-        self,
-        auth::{register, login, google_login, google_callback},
-        tasks::{get_tasks, get_task, create_task, update_task, delete_task, update_task_status},
-        notifications::{get_notifications, notification_stream, mark_notification_read, delete_notification, update_notification_preferences},
-        users::{get_current_user, update_current_user, get_user_stats},
-        messages::{send_message, get_conversation, get_conversations, mark_message_read, message_stream},
+    auth::{
+        dto::{AuthResponse, LoginRequest, RefreshTokenRequest, RefreshTokenResponse, RegisterRequest},
+        handlers as auth_handlers,
+    },
+    message::{
+        dto::{ConversationUser, SendMessageRequest},
+        handlers as message_handlers,
+        models::{Message, MessageResponse},
     },
     middleware::auth_middleware,
-    models::*,
+    notification::{
+        dto::UpdateNotificationPreferencesRequest,
+        handlers as notification_handlers,
+        models::Notification,
+    },
     state::AppState,
+    task::{
+        dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest},
+        handlers as task_handlers,
+        models::{Task, TaskPriority, TaskStatus},
+    },
+    user::{
+        dto::{UpdateProfileRequest, UserStatsResponse},
+        handlers as user_handlers,
+        models::{User, UserResponse},
+    },
 };
 use axum::{
     middleware,
@@ -24,36 +38,40 @@ use utoipa_swagger_ui::SwaggerUi;
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        crate::handlers::auth::register,
-        crate::handlers::auth::login,
-        crate::handlers::auth::google_login,
-        crate::handlers::auth::google_callback,
-        crate::handlers::tasks::get_tasks,
-        crate::handlers::tasks::get_task,
-        crate::handlers::tasks::create_task,
-        crate::handlers::tasks::update_task,
-        crate::handlers::tasks::delete_task,
-        crate::handlers::tasks::update_task_status,
-        crate::handlers::tasks::task_stream,
-        crate::handlers::notifications::get_notifications,
-        crate::handlers::notifications::notification_stream,
-        crate::handlers::notifications::mark_notification_read,
-        crate::handlers::notifications::delete_notification,
-        crate::handlers::notifications::update_notification_preferences,
-        crate::handlers::users::get_current_user,
-        crate::handlers::users::update_current_user,
-        crate::handlers::users::get_user_stats,
-        crate::handlers::messages::send_message,
-        crate::handlers::messages::get_conversation,
-        crate::handlers::messages::get_conversations,
-        crate::handlers::messages::mark_message_read,
-        crate::handlers::messages::message_stream,
+        crate::auth::handlers::register,
+        crate::auth::handlers::login,
+        crate::auth::handlers::google_login,
+        crate::auth::handlers::google_callback,
+        crate::auth::handlers::refresh_token,
+        crate::auth::handlers::logout,
+        crate::task::handlers::get_tasks,
+        crate::task::handlers::get_task,
+        crate::task::handlers::create_task,
+        crate::task::handlers::update_task,
+        crate::task::handlers::delete_task,
+        crate::task::handlers::update_task_status,
+        crate::task::handlers::task_stream,
+        crate::notification::handlers::get_notifications,
+        crate::notification::handlers::notification_stream,
+        crate::notification::handlers::mark_notification_read,
+        crate::notification::handlers::delete_notification,
+        crate::notification::handlers::update_notification_preferences,
+        crate::user::handlers::get_current_user,
+        crate::user::handlers::update_current_user,
+        crate::user::handlers::get_user_stats,
+        crate::message::handlers::send_message,
+        crate::message::handlers::get_conversation,
+        crate::message::handlers::get_conversations,
+        crate::message::handlers::mark_message_read,
+        crate::message::handlers::message_stream,
     ),
     components(
         schemas(
             RegisterRequest,
             LoginRequest,
             AuthResponse,
+            RefreshTokenRequest,
+            RefreshTokenResponse,
             CreateTaskRequest,
             UpdateTaskRequest,
             UpdateTaskStatusRequest,
@@ -108,35 +126,37 @@ pub fn create_router(state: AppState) -> Router {
 
     // Public routes (no auth required)
     let auth_routes = Router::new()
-        .route("/register", post(handlers::register))
-        .route("/login", post(handlers::login))
-        .route("/google", get(handlers::google_login))
-        .route("/google/callback", get(handlers::google_callback));
+        .route("/register", post(auth_handlers::register))
+        .route("/login", post(auth_handlers::login))
+        .route("/refresh", post(auth_handlers::refresh_token))
+        .route("/logout", post(auth_handlers::logout))
+        .route("/google", get(auth_handlers::google_login))
+        .route("/google/callback", get(auth_handlers::google_callback));
 
     // Protected routes (auth required)
     let task_routes = Router::new()
-        .route("/", get(handlers::get_tasks).post(handlers::create_task))
-        .route("/stream", get(handlers::task_stream))
+        .route("/", get(task_handlers::get_tasks).post(task_handlers::create_task))
+        .route("/stream", get(task_handlers::task_stream))
         .route(
             "/:id",
-            get(handlers::get_task)
-                .put(handlers::update_task)
-                .delete(handlers::delete_task),
+            get(task_handlers::get_task)
+                .put(task_handlers::update_task)
+                .delete(task_handlers::delete_task),
         )
-        .route("/:id/status", patch(handlers::update_task_status))
+        .route("/:id/status", patch(task_handlers::update_task_status))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
         ));
 
     let notification_routes = Router::new()
-        .route("/", get(handlers::get_notifications))
-        .route("/stream", get(handlers::notification_stream))
-        .route("/:id/read", patch(handlers::mark_notification_read))
-        .route("/:id", delete(handlers::delete_notification))
+        .route("/", get(notification_handlers::get_notifications))
+        .route("/stream", get(notification_handlers::notification_stream))
+        .route("/:id/read", patch(notification_handlers::mark_notification_read))
+        .route("/:id", delete(notification_handlers::delete_notification))
         .route(
             "/preferences",
-            put(handlers::update_notification_preferences),
+            put(notification_handlers::update_notification_preferences),
         )
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -144,19 +164,19 @@ pub fn create_router(state: AppState) -> Router {
         ));
 
     let user_routes = Router::new()
-        .route("/me", get(handlers::get_current_user).put(handlers::update_current_user))
-        .route("/me/stats", get(handlers::get_user_stats))
+        .route("/me", get(user_handlers::get_current_user).put(user_handlers::update_current_user))
+        .route("/me/stats", get(user_handlers::get_user_stats))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
         ));
 
     let message_routes = Router::new()
-        .route("/", post(handlers::send_message))
-        .route("/conversations", get(handlers::get_conversations))
-        .route("/stream", get(handlers::message_stream))
-        .route("/:user_id", get(handlers::get_conversation))
-        .route("/:id/read", patch(handlers::mark_message_read))
+        .route("/", post(message_handlers::send_message))
+        .route("/conversations", get(message_handlers::get_conversations))
+        .route("/stream", get(message_handlers::message_stream))
+        .route("/:user_id", get(message_handlers::get_conversation))
+        .route("/:id/read", patch(message_handlers::mark_message_read))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

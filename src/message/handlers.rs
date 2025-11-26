@@ -15,11 +15,14 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    dto::{ConversationUser, PaginatedResponse, SendMessageRequest},
     error::{AppError, Result},
     middleware::auth::AuthUser,
-    models::{Message, MessageResponse},
     state::AppState,
+    task::dto::PaginatedResponse, // Reusing PaginatedResponse from task module or shared
+};
+use super::{
+    dto::{ConversationUser, SendMessageRequest},
+    models::{Message, MessageResponse},
 };
 
 #[derive(Debug, Deserialize)]

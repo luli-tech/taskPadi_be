@@ -7,11 +7,13 @@ use axum::{
 use validator::Validate;
 
 use crate::{
-    dto::{UpdateProfileRequest, UserStatsResponse},
     error::{AppError, Result},
     middleware::auth::AuthUser,
-    models::UserResponse,
     state::AppState,
+};
+use super::{
+    user_dto::{UpdateProfileRequest, UserStatsResponse},
+    user_models::UserResponse,
 };
 
 /// Get current user profile
@@ -32,12 +34,11 @@ pub async fn get_current_user(
     AuthUser(user_id): AuthUser,
 ) -> Result<impl IntoResponse> {
     let user = state
-        .user_repository
-        .find_by_id(user_id)
-        .await?
-        .ok_or(AppError::NotFound("User not found".to_string()))?;
+        .user_service
+        .get_current_user(user_id)
+        .await?;
 
-    Ok((StatusCode::OK, Json(UserResponse::from(user))))
+    Ok((StatusCode::OK, Json(user)))
 }
 
 /// Update current user profile
@@ -63,17 +64,11 @@ pub async fn update_current_user(
     payload.validate()?;
 
     let user = state
-        .user_repository
-        .update_profile(
-            user_id,
-            payload.username,
-            payload.bio,
-            payload.theme,
-            payload.avatar_url,
-        )
+        .user_service
+        .update_current_user(user_id, payload)
         .await?;
 
-    Ok((StatusCode::OK, Json(UserResponse::from(user))))
+    Ok((StatusCode::OK, Json(user)))
 }
 
 /// Get user task statistics
@@ -93,37 +88,7 @@ pub async fn get_user_stats(
     State(state): State<AppState>,
     AuthUser(user_id): AuthUser,
 ) -> Result<impl IntoResponse> {
-    let (
-        total_tasks,
-        pending_tasks,
-        in_progress_tasks,
-        completed_tasks,
-        archived_tasks,
-        low_priority_tasks,
-        medium_priority_tasks,
-        high_priority_tasks,
-        urgent_priority_tasks,
-    ) = state.task_repository.get_user_stats(user_id).await?;
-
-    // Calculate completion rate (completed / total * 100)
-    let completion_rate = if total_tasks > 0 {
-        (completed_tasks as f64 / total_tasks as f64) * 100.0
-    } else {
-        0.0
-    };
-
-    let stats = UserStatsResponse {
-        total_tasks,
-        pending_tasks,
-        in_progress_tasks,
-        completed_tasks,
-        archived_tasks,
-        completion_rate,
-        low_priority_tasks,
-        medium_priority_tasks,
-        high_priority_tasks,
-        urgent_priority_tasks,
-    };
+    let stats = state.user_service.get_user_stats(user_id).await?;
 
     Ok((StatusCode::OK, Json(stats)))
 }
