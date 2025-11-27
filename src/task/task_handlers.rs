@@ -82,6 +82,23 @@ pub async fn get_tasks(
 }
 
 // ... (get_task)
+
+
+// ... (get_task)
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{task_id}",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Task details", body = Task),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security(("bearer_auth" = []))
+)]
 pub async fn get_task(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
@@ -92,6 +109,18 @@ pub async fn get_task(
 }
 
 // ... (create_task)
+#[utoipa::path(
+    post,
+    path = "/api/tasks",
+    request_body = CreateTaskRequest,
+    responses(
+        (status = 201, description = "Task created", body = Task),
+        (status = 401, description = "Unauthorized"),
+        (status = 400, description = "Validation error")
+    ),
+    tag = "tasks",
+    security(("bearer_auth" = []))
+)]
 pub async fn create_task(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
@@ -109,6 +138,22 @@ pub async fn create_task(
 }
 
 // ... (update_task)
+#[utoipa::path(
+    put,
+    path = "/api/tasks/{task_id}",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = UpdateTaskRequest,
+    responses(
+        (status = 200, description = "Task updated", body = Task),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found"),
+        (status = 400, description = "Validation error")
+    ),
+    tag = "tasks",
+    security(("bearer_auth" = []))
+)]
 pub async fn update_task(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
@@ -127,6 +172,20 @@ pub async fn update_task(
 }
 
 // ... (delete_task)
+#[utoipa::path(
+    delete,
+    path = "/api/tasks/{task_id}",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 204, description = "Task deleted"),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security(("bearer_auth" = []))
+)]
 pub async fn delete_task(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
@@ -142,6 +201,22 @@ pub async fn delete_task(
 }
 
 // ... (update_task_status)
+#[utoipa::path(
+    patch,
+    path = "/api/tasks/{task_id}/status",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = UpdateTaskStatusRequest,
+    responses(
+        (status = 200, description = "Task status updated", body = Task),
+        (status = 401, description = "Unauthorized"),
+        (status = 404, description = "Task not found"),
+        (status = 400, description = "Validation error")
+    ),
+    tag = "tasks",
+    security(("bearer_auth" = []))
+)]
 pub async fn update_task_status(
     State(state): State<AppState>,
     Extension(user_id): Extension<Uuid>,
