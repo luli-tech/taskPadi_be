@@ -58,8 +58,8 @@ pub async fn register(
     Ok((
         StatusCode::CREATED,
         Json(AuthResponse {
-            access_token:create_access_token(&user)?,
-            refresh_token:create_refresh_token(&user)?,
+        access_token: create_access_token(user.id, &user.email, &user.role, &state.jwt_secret)?,
+        refresh_token: create_refresh_token(user.id, &user.email, &user.role, &state.jwt_secret)?,
             user: user.into(),
         }),
     ))
@@ -93,8 +93,8 @@ pub async fn login(
     // Verify password using imported function
     verify_password(&payload.password, &user.password_hash)?;
     Ok(Json(AuthResponse {
-        access_token:create_access_token(&user)?,
-        refresh_token:create_refresh_token(&user)?,
+access_token: create_access_token(user.id, &user.email, &user.role, &state.jwt_secret)?,
+        refresh_token: create_refresh_token(user.id, &user.email, &user.role, &state.jwt_secret)?,
         user: user.into(),
     }))
 }
@@ -121,13 +121,15 @@ pub async fn refresh_token(
     // Ok(Json(RefreshTokenResponse {
     //     access_token:create_access_token(&user)?,
     // }))
-     let user_id = verify_jwt(&payload.refresh_token)?;
+  let claims = verify_jwt(&payload.refresh_token, &state.jwt_secret)?;
+let user_id = claims.sub; // or whatever field has the UUID
+
     let user = state.auth_service.find_by_id(user_id)
         .await?
         .ok_or(AppError::Unauthorized("Invalid refresh token".into()))?;
 
     Ok(Json(RefreshTokenResponse {
-        access_token: create_access_token(&user)?,
+    access_token: create_access_token(user.id, &user.email, &user.role, &state.jwt_secret)?,
     }))
 }
 
