@@ -31,7 +31,7 @@ pub fn create_access_token(user_id: Uuid, email: &str, role: &str, secret: &str)
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|_| AppError::Authentication("Failed to create access token".to_string()))
+    .map_err(|_| AppError::Authentication("Failed to create access token".to_string()));
 }
 
 /// Create refresh token (long-lived, 7 days)
@@ -53,7 +53,7 @@ pub fn create_refresh_token(user_id: Uuid, email: &str, role: &str, secret: &str
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|_| AppError::Authentication("Failed to create refresh token".to_string()))
+    .map_err(|_| AppError::Authentication("Failed to create refresh token".to_string()));
 }
 
 /// Verify JWT token and extract claims
@@ -64,7 +64,7 @@ pub fn verify_jwt(token: &str, secret: &str) -> Result<Claims> {
         &Validation::default(),
     )
   .map(|data| data.claims)
-    .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))
+    .map_err(|_| AppError::Unauthorized("Invalid token".to_string()));
 }
 
 /// Legacy function for backward compatibility
@@ -86,5 +86,5 @@ pub fn create_jwt(user_id: Uuid, email: &str, secret: &str, expiration_hours: i6
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|_| AppError::Authentication("Failed to create token".to_string()))
+    .map_err(|_| AppError::Authentication("Failed to create token".to_string()));
 }

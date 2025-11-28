@@ -18,12 +18,12 @@ pub async fn auth_middleware(
         .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
-       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
 
 
     let token = auth_header
         .strip_prefix("Bearer ")
-       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
 
 
     let claims = verify_jwt(token, &state.config.jwt_secret)?;
@@ -53,7 +53,7 @@ where
             .get::<Uuid>()
             .copied()
             .map(AuthUser)
-           .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+           .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
 
     }
 }
