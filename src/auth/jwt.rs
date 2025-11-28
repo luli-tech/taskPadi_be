@@ -63,8 +63,8 @@ pub fn verify_jwt(token: &str, secret: &str) -> Result<Claims> {
         &DecodingKey::from_secret(secret.as_bytes()),
         &Validation::default(),
     )
-    .map(|data| data.claims)
-    .map_err(|_| AppError::Unauthorized)
+  .map(|data| data.claims)
+    .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))
 }
 
 /// Legacy function for backward compatibility

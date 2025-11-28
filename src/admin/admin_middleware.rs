@@ -32,7 +32,8 @@ pub async fn admin_authorization(
         .ok_or(AppError::InternalError)?;
 
     let user = state.user_repository.find_by_id(user_id).await?
-        .ok_or(AppError::Unauthorized)?;
+      .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+
 
     if user.role != "admin" {
         return Err(AppError::Forbidden("Admin access required".to_string()));

@@ -18,16 +18,19 @@ pub async fn auth_middleware(
         .headers()
         .get("Authorization")
         .and_then(|h| h.to_str().ok())
-        .ok_or(AppError::Unauthorized)?;
+       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+
 
     let token = auth_header
         .strip_prefix("Bearer ")
-        .ok_or(AppError::Unauthorized)?;
+       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+
 
     let claims = verify_jwt(token, &state.config.jwt_secret)?;
     
-    let user_id = Uuid::parse_str(&claims.sub)
-        .map_err(|_| AppError::Unauthorized)?;
+   let user_id = Uuid::parse_str(&claims.sub)
+    .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
+
 
     req.extensions_mut().insert(user_id);
     
@@ -50,6 +53,7 @@ where
             .get::<Uuid>()
             .copied()
             .map(AuthUser)
-            .ok_or(AppError::Unauthorized)
+           .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+
     }
 }

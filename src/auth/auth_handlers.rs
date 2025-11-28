@@ -12,7 +12,7 @@ use axum::{extract::{State, Query}, http::StatusCode, response::{IntoResponse, R
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope, AuthorizationCode, TokenResponse};
 use serde::Deserialize;
 use validator::Validate;
-use chrono::Utc;
+// use chrono::Utc;
 
 #[derive(Deserialize)]
 pub struct GoogleCallback {
@@ -92,7 +92,13 @@ pub async fn login(
       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
 
     // Verify password using imported function
-    verify_password(&payload.password, &user.password_hash)?;
+    // verify_password(&payload.password, &user.password_hash)?;
+    let password_hash = user.password_hash
+    .as_ref()
+    .ok_or(AppError::Unauthorized("No password set".to_string()))?;
+
+      verify_password(&payload.password, password_hash)?;
+
     Ok(Json(AuthResponse {
     access_token: create_access_token(user.id, &user.email, &user.role, &state.config.jwt_secret)?,
     refresh_token: create_refresh_token(user.id, &user.email, &user.role, &state.config.jwt_secret)?,
