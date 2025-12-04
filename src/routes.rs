@@ -127,7 +127,8 @@ pub fn create_router(state: AppState) -> Router {
             "https://preview-task-manager-web-app-kzmr08fjkyg1tq51kj1l.vusercontent.net"
             .parse()
             .unwrap(),
-            "https://id-preview--b130d367-8904-4b37-9f41-ae51af942bec.lovable.app".parse().unwrap()
+            "https://id-preview--b130d367-8904-4b37-9f41-ae51af942bec.lovable.app".parse().unwrap(),
+            "https://taskpadi.vercel.app".parse().unwrap()
         ]))
         .allow_methods([
             Method::GET,
