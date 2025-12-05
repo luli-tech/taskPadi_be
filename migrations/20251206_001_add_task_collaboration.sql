@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS task_members (
 CREATE TABLE IF NOT EXISTS task_activity (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     action VARCHAR(100) NOT NULL,
     details JSONB,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()

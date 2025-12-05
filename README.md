@@ -149,6 +149,22 @@ cargo build --release
 
 The server will start on `http://localhost:3000`.
 
+## Deployment
+
+### Deploy to Render
+
+This project includes automatic deployment to Render via GitHub Actions. See the [Render Deployment Guide](RENDER_DEPLOYMENT.md) for detailed setup instructions.
+
+**Quick Setup:**
+1. Create a Web Service on Render connected to your GitHub repo
+2. Set up PostgreSQL database on Render
+3. Configure environment variables
+4. Add Render Deploy Hook URL to GitHub Secrets as `RENDER_DEPLOY_HOOK_URL`
+5. Push to `main` branch - deployment happens automatically after tests pass!
+
+For complete step-by-step instructions, see [RENDER_DEPLOYMENT.md](RENDER_DEPLOYMENT.md).
+
+
 ## API Documentation
 
 Access the interactive Swagger UI at:
