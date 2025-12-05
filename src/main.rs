@@ -58,11 +58,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create notification broadcaster
     let (notification_tx, _) = broadcast::channel(100);
     
-    // Create message broadcaster
-    let (message_tx, _) = broadcast::channel(100);
-    
     // Create task broadcaster
     let (task_tx, _) = broadcast::channel(100);
+
+    // Create WebSocket connection manager
+    let ws_connections = Arc::new(crate::websocket::ConnectionManager::new());
 
     // Create repositories
     let user_repository = crate::user::user_repository::UserRepository::new(db.clone());
@@ -91,8 +91,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: config.clone(),
         oauth_client,
         notification_tx: notification_tx.clone(),
-        message_tx: message_tx.clone(),
         task_tx: task_tx.clone(),
+        ws_connections,
         refresh_token_repository,
         user_repository,
         task_repository,

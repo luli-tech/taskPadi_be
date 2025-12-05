@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
 use validator::Validate;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize, Validate, ToSchema)]
 pub struct CreateTaskRequest {
@@ -36,4 +37,31 @@ pub struct PaginatedResponse<T> {
     pub page: u32,
     pub limit: u32,
     pub total_pages: u32,
+}
+
+// Collaborative task DTOs
+#[derive(Debug, Deserialize, Validate, ToSchema)]
+pub struct ShareTaskRequest {
+    #[validate(length(min = 1))]
+    pub user_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskMemberResponse {
+    pub user_id: Uuid,
+    pub username: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub added_at: DateTime<Utc>,
+    pub added_by: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TaskActivityResponse {
+    pub id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub username: Option<String>,
+    pub action: String,
+    pub details: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
 }

@@ -59,6 +59,43 @@ pub struct Task {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct TaskMember {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub user_id: Uuid,
+    pub role: String,
+    pub added_at: DateTime<Utc>,
+    pub added_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+pub struct TaskActivity {
+    pub id: Uuid,
+    pub task_id: Uuid,
+    pub user_id: Option<Uuid>,
+    pub action: String,
+    pub details: Option<serde_json::Value>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskWithMembers {
+    #[serde(flatten)]
+    pub task: Task,
+    pub members: Vec<TaskMemberInfo>,
+    pub is_owner: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct TaskMemberInfo {
+    pub user_id: Uuid,
+    pub username: String,
+    pub avatar_url: Option<String>,
+    pub role: String,
+    pub added_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

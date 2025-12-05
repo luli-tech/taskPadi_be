@@ -31,6 +31,16 @@ pub async fn auth_middleware(
    let user_id = Uuid::parse_str(&claims.sub)
     .map_err(|_| AppError::Unauthorized("Invalid token".to_string()))?;
 
+    // Check if user is active
+    let user = state
+        .user_repository
+        .find_by_id(user_id)
+        .await?
+        .ok_or(AppError::Unauthorized("User not found".to_string()))?;
+
+    if !user.is_active {
+        return Err(AppError::Forbidden("Account is deactivated".to_string()));
+    }
 
     req.extensions_mut().insert(user_id);
     
