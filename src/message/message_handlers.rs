@@ -76,7 +76,7 @@ pub async fn send_message(
         image_url: message.image_url.clone(),
         created_at: message.created_at.to_rfc3339(),
     });
-    state.ws_connections.send_to_user(&payload.receiver_id, ws_message).await;
+    state.ws_connections.send_to_user(&payload.receiver_id, ws_message);
 
     // Create notification for receiver
     let notification_message = if message.image_url.is_some() {
