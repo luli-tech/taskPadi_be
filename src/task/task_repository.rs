@@ -304,4 +304,229 @@ impl TaskRepository {
             urgent_priority_tasks,
         ))
     }
+
+    // Collaborative task methods
+    pub async fn add_task_member(
+        &self,
+        task_id: Uuid,
+        user_id: Uuid,
+        role: &str,
+        added_by: Uuid,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO task_members (task_id, user_id, role, added_by)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (task_id, user_id) DO NOTHING"
+        )
+        .bind(task_id)
+        .bind(user_id)
+        .bind(role)
+        .bind(added_by)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn remove_task_member(&self, task_id: Uuid, user_id: Uuid) -> Result<()> {
+        sqlx::query("DELETE FROM task_members WHERE task_id = $1 AND user_id = $2")
+            .bind(task_id)
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_task_members(&self, task_id: Uuid) -> Result<Vec<super::task_models::TaskMemberInfo>> {
+        let members = sqlx::query_as::<_, super::task_models::TaskMemberInfo>(
+            "SELECT tm.user_id, u.username, u.avatar_url, tm.role, tm.added_at
+             FROM task_members tm
+             JOIN users u ON u.id = tm.user_id
+             WHERE tm.task_id = $1
+             ORDER BY tm.added_at ASC"
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(members)
+    }
+
+    pub async fn get_user_tasks_including_shared(&self, user_id: Uuid, filters: TaskFilters) -> Result<(Vec<Task>, i64)> {
+        let mut query = "SELECT DISTINCT t.* FROM tasks t 
+                         LEFT JOIN task_members tm ON t.id = tm.task_id
+                         WHERE (t.user_id = $1 OR tm.user_id = $1)".to_string();
+        
+        let mut count_query = "SELECT COUNT(DISTINCT t.id) FROM tasks t
+                               LEFT JOIN task_members tm ON t.id = tm.task_id
+                               WHERE (t.user_id = $1 OR tm.user_id = $1)".to_string();
+        
+        let mut params_count = 1;
+
+        if let Some(ref _status) = filters.status {
+            params_count += 1;
+            let filter = format!(" AND t.status = ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+
+        if let Some(ref _priority) = filters.priority {
+            params_count += 1;
+            let filter = format!(" AND t.priority = ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+
+        if let Some(ref _search) = filters.search {
+            params_count += 1;
+            let filter = format!(" AND (t.title ILIKE ${} OR t.description ILIKE ${})", params_count, params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+
+        // Calculate total count
+        let mut count_db_query = sqlx::query_scalar::<_, i64>(&count_query).bind(user_id);
+
+        if let Some(status) = &filters.status {
+            count_db_query = count_db_query.bind(status);
+        }
+        if let Some(priority) = &filters.priority {
+            count_db_query = count_db_query.bind(priority);
+        }
+        if let Some(search) = &filters.search {
+            let search_pattern = format!("%{}%", search);
+            count_db_query = count_db_query.bind(search_pattern);
+        }
+
+        let total_count = count_db_query.fetch_one(&self.pool).await?;
+
+        // Add sorting
+        let sort_column = match filters.sort_by.as_deref() {
+            Some("priority") => "t.priority",
+            Some("due_date") => "t.due_date",
+            Some("created_at") => "t.created_at",
+            _ => "t.created_at",
+        };
+
+        let sort_direction = match filters.sort_order.as_deref() {
+            Some("asc") => "ASC",
+            _ => "DESC",
+        };
+
+        query.push_str(&format!(" ORDER BY {} {}", sort_column, sort_direction));
+
+        // Add pagination
+        let page = filters.page.unwrap_or(1);
+        let limit = filters.limit.unwrap_or(10);
+        let offset = (page - 1) * limit;
+
+        query.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
+
+        let mut db_query = sqlx::query_as::<_, Task>(&query).bind(user_id);
+
+        if let Some(status) = filters.status {
+            db_query = db_query.bind(status);
+        }
+
+        if let Some(priority) = filters.priority {
+            db_query = db_query.bind(priority);
+        }
+
+        if let Some(search) = filters.search {
+            let search_pattern = format!("%{}%", search);
+            db_query = db_query.bind(search_pattern);
+        }
+
+        let tasks = db_query.fetch_all(&self.pool).await?;
+        Ok((tasks, total_count))
+    }
+
+    pub async fn is_task_member(&self, task_id: Uuid, user_id: Uuid) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM task_members WHERE task_id = $1 AND user_id = $2"
+        )
+        .bind(task_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count > 0)
+    }
+
+    pub async fn is_task_owner(&self, task_id: Uuid, user_id: Uuid) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks WHERE id = $1 AND user_id = $2"
+        )
+        .bind(task_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count > 0)
+    }
+
+    pub async fn has_task_access(&self, task_id: Uuid, user_id: Uuid) -> Result<bool> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM tasks t
+             LEFT JOIN task_members tm ON t.id = tm.task_id
+             WHERE t.id = $1 AND (t.user_id = $2 OR tm.user_id = $2)"
+        )
+        .bind(task_id)
+        .bind(user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count > 0)
+    }
+
+    pub async fn log_task_activity(
+        &self,
+        task_id: Uuid,
+        user_id: Uuid,
+        action: &str,
+        details: Option<serde_json::Value>,
+    ) -> Result<()> {
+        sqlx::query(
+            "INSERT INTO task_activity (task_id, user_id, action, details)
+             VALUES ($1, $2, $3, $4)"
+        )
+        .bind(task_id)
+        .bind(user_id)
+        .bind(action)
+        .bind(details)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_task_activity(&self, task_id: Uuid) -> Result<Vec<super::task_dto::TaskActivityResponse>> {
+        let activities = sqlx::query_as::<_, super::task_dto::TaskActivityResponse>(
+            "SELECT ta.id, ta.user_id, u.username, ta.action, ta.details, ta.created_at
+             FROM task_activity ta
+             LEFT JOIN users u ON u.id = ta.user_id
+             WHERE ta.task_id = $1
+             ORDER BY ta.created_at DESC"
+        )
+        .bind(task_id)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(activities)
+    }
+
+    pub async fn find_by_id_with_access(&self, id: Uuid, user_id: Uuid) -> Result<Option<Task>> {
+        let task = sqlx::query_as::<_, Task>(
+            "SELECT DISTINCT t.* FROM tasks t
+             LEFT JOIN task_members tm ON t.id = tm.task_id
+             WHERE t.id = $1 AND (t.user_id = $2 OR tm.user_id = $2)"
+        )
+        .bind(id)
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        
+        Ok(task)
+    }
 }

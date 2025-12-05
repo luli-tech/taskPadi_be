@@ -52,6 +52,10 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::task::task_handlers::delete_task,
         crate::task::task_handlers::update_task_status,
         crate::task::task_handlers::task_stream,
+        crate::task::task_handlers::share_task,
+        crate::task::task_handlers::remove_task_member,
+        crate::task::task_handlers::get_task_members,
+        crate::task::task_handlers::get_task_activity,
         crate::notification::notification_handlers::get_notifications,
         crate::notification::notification_handlers::notification_stream,
         crate::notification::notification_handlers::mark_notification_read,
@@ -60,11 +64,16 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::user::user_handlers::get_current_user,
         crate::user::user_handlers::update_current_user,
         crate::user::user_handlers::get_user_stats,
+        crate::user::user_handlers::get_all_users,
+        crate::user::user_handlers::get_user_by_id,
+        crate::user::user_handlers::admin_update_user,
+        crate::user::user_handlers::delete_user,
+        crate::user::user_handlers::update_user_status,
+        crate::user::user_handlers::update_admin_status,
         crate::message::message_handlers::send_message,
         crate::message::message_handlers::get_conversation,
         crate::message::message_handlers::get_conversations,
         crate::message::message_handlers::mark_message_read,
-        crate::message::message_handlers::message_stream,
     ),
     components(
         schemas(
@@ -96,6 +105,7 @@ use utoipa_swagger_ui::SwaggerUi;
         (name = "tasks", description = "Task management endpoints"),
         (name = "notifications", description = "Notification endpoints"),
         (name = "users", description = "User profile endpoints"),
+        (name = "admin", description = "Admin user management endpoints"),
         (name = "messages", description = "User messaging endpoints")
     ),
     modifiers(&SecurityAddon)
@@ -160,6 +170,10 @@ pub fn create_router(state: AppState) -> Router {
                 .delete(task_handlers::delete_task),
         )
         .route("/:id/status", patch(task_handlers::update_task_status))
+        .route("/:id/share", post(task_handlers::share_task))
+        .route("/:id/members", get(task_handlers::get_task_members))
+        .route("/:id/members/:user_id", delete(task_handlers::remove_task_member))
+        .route("/:id/activity", get(task_handlers::get_task_activity))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -187,12 +201,32 @@ pub fn create_router(state: AppState) -> Router {
             auth_middleware,
         ));
 
+    // Admin routes
+    let admin_routes = Router::new()
+        .route("/users", get(user_handlers::get_all_users))
+        .route("/users/:user_id", get(user_handlers::get_user_by_id)
+            .put(user_handlers::admin_update_user)
+            .delete(user_handlers::delete_user))
+        .route("/users/:user_id/status", patch(user_handlers::update_user_status))
+        .route("/users/:user_id/admin", patch(user_handlers::update_admin_status))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            crate::middleware::admin_middleware,
+        ));
+
     let message_routes = Router::new()
         .route("/", post(message_handlers::send_message))
         .route("/conversations", get(message_handlers::get_conversations))
-        .route("/stream", get(message_handlers::message_stream))
         .route("/:user_id", get(message_handlers::get_conversation))
         .route("/:id/read", patch(message_handlers::mark_message_read))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    // WebSocket route
+    let ws_routes = Router::new()
+        .route("/ws", get(crate::websocket::ws_handler))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -203,7 +237,9 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/tasks", task_routes)
         .nest("/notifications", notification_routes)
         .nest("/users", user_routes)
-        .nest("/messages", message_routes);
+        .nest("/admin", admin_routes)
+        .nest("/messages", message_routes)
+        .merge(ws_routes);
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))

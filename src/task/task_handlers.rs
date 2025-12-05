@@ -260,3 +260,140 @@ pub async fn task_stream(
 
     Sse::new(stream).keep_alive(KeepAlive::default())
 }
+
+// Collaboration endpoints
+
+/// Share task with other users
+#[utoipa::path(
+    post,
+    path = "/api/tasks/{task_id}/share",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    request_body = super::task_dto::ShareTaskRequest,
+    responses(
+        (status = 200, description = "Task shared successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Only task owner can share"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security((\"bearer_auth\" = []))
+)]
+pub async fn share_task(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<Uuid>,
+    Path(task_id): Path<Uuid>,
+    Json(payload): Json<super::task_dto::ShareTaskRequest>,
+) -> Result<impl IntoResponse> {
+    payload.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    state.task_service.share_task(task_id, payload.user_ids.clone(), user_id).await?;
+
+    // Broadcast task shared event via WebSocket
+    for shared_user_id in payload.user_ids {
+        let task = state.task_service.get_task(user_id, task_id).await?;
+        let ws_message = crate::websocket::types::WsMessage::TaskShared(
+            crate::websocket::types::TaskSharedPayload {
+                task_id,
+                task_title: task.title.clone(),
+                shared_by: user_id,
+                shared_by_username: state.user_repository.find_by_id(user_id).await?
+                    .map(|u| u.username)
+                    .unwrap_or_else(|| "Unknown".to_string()),
+            }
+        );
+        state.ws_connections.send_to_user(&shared_user_id, ws_message);
+    }
+
+    Ok(StatusCode::OK)
+}
+
+/// Remove collaborator from task
+#[utoipa::path(
+    delete,
+    path = "/api/tasks/{task_id}/members/{user_id}",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID"),
+        ("user_id" = Uuid, Path, description = "User ID to remove")
+    ),
+    responses(
+        (status = 204, description = "Collaborator removed successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Only task owner can remove collaborators"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security((\"bearer_auth\" = []))
+)]
+pub async fn remove_task_member(
+    State(state): State<AppState>,
+    Extension(requesting_user): Extension<Uuid>,
+    Path((task_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<StatusCode> {
+    state.task_service.remove_collaborator(task_id, user_id, requesting_user).await?;
+
+    // Broadcast member removed event via WebSocket
+    let task = state.task_service.get_task(requesting_user, task_id).await?;
+    let ws_message = crate::websocket::types::WsMessage::TaskMemberRemoved(
+        crate::websocket::types::TaskMemberRemovedPayload {
+            task_id,
+            task_title: task.title,
+            removed_by: requesting_user,
+        }
+    );
+    state.ws_connections.send_to_user(&user_id, ws_message);
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+/// Get task members
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{task_id}/members",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Task members retrieved successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Access denied"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security((\"bearer_auth\" = []))
+)]
+pub async fn get_task_members(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<Uuid>,
+    Path(task_id): Path<Uuid>,
+) -> Result<Json<Vec<super::task_models::TaskMemberInfo>>> {
+    let members = state.task_service.get_task_members(task_id, user_id).await?;
+    Ok(Json(members))
+}
+
+/// Get task activity log
+#[utoipa::path(
+    get,
+    path = "/api/tasks/{task_id}/activity",
+    params(
+        ("task_id" = Uuid, Path, description = "Task ID")
+    ),
+    responses(
+        (status = 200, description = "Task activity retrieved successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Access denied"),
+        (status = 404, description = "Task not found")
+    ),
+    tag = "tasks",
+    security((\"bearer_auth\" = []))
+)]
+pub async fn get_task_activity(
+    State(state): State<AppState>,
+    Extension(user_id): Extension<Uuid>,
+    Path(task_id): Path<Uuid>,
+) -> Result<Json<Vec<super::task_dto::TaskActivityResponse>>> {
+    let activity = state.task_service.get_task_activity(task_id, user_id).await?;
+    Ok(Json(activity))
+}
