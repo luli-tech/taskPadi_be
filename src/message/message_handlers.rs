@@ -4,7 +4,6 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use chrono::Utc;
 use serde::Deserialize;
 use uuid::Uuid;
 use validator::Validate;

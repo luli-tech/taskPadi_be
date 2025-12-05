@@ -1,11 +1,3 @@
-use serde::{Deserialize, Serialize};
-use utoipa::ToSchema;
-use validator::Validate;
-use validator::Validate;
-
-#[derive(Debug, Deserialize, Validate, ToSchema)]
-pub struct UpdateProfileRequest {
-    #[validate(length(min = 3, max = 255))]
     pub username: Option<String>,
     pub bio: Option<String>,
     #[validate(length(min = 1, max = 50))]
