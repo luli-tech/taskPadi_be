@@ -55,34 +55,11 @@ pub async fn send_message(
         .await?
         .ok_or(AppError::NotFound("Receiver not found".to_string()))?;
 
-    // Create message
+    // Create and broadcast message
     let message = state
         .message_service
-        .send_message(user_id, payload.clone())
+        .send_message(user_id, payload)
         .await?;
-
-    // Broadcast message via WebSocket
-    let ws_message = crate::websocket::types::WsMessage::ChatMessage(crate::websocket::types::ChatMessagePayload {
-        id: message.id,
-        sender_id: user_id,
-        receiver_id: payload.receiver_id,
-        content: message.content.clone(),
-        image_url: message.image_url.clone(),
-        created_at: message.created_at.to_rfc3339(),
-    });
-    state.ws_connections.send_to_user(&payload.receiver_id, ws_message);
-
-    // Create notification for receiver
-    let notification_message = if message.image_url.is_some() {
-        format!("New message with image from user")
-    } else {
-        format!("New message: {}", &message.content)
-    };
-
-    let _ = state
-        .notification_repository
-        .create(payload.receiver_id, None, &notification_message)
-        .await;
 
     Ok((StatusCode::CREATED, Json(MessageResponse::from(message))))
 }
@@ -114,9 +91,9 @@ pub async fn get_conversation(
     let limit = query.limit.unwrap_or(50);
     let offset = ((page - 1) * limit) as i64;
 
-    let messages = state
+    let (messages, total) = state
         .message_service
-        .get_conversation(user_id, other_user_id, limit as i64, offset)
+        .get_conversation_with_count(user_id, other_user_id, limit as i64, offset)
         .await?;
 
     // Mark messages from other user as read
@@ -130,7 +107,6 @@ pub async fn get_conversation(
         .map(MessageResponse::from)
         .collect();
 
-    let total = message_responses.len() as i64;
     let total_pages = ((total as f64) / (limit as f64)).ceil() as u32;
 
     let response = PaginatedResponse {

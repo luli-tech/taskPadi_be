@@ -66,6 +66,7 @@ pub async fn get_tasks(
         sort_order: filters.sort_order,
         page: Some(page),
         limit: Some(limit),
+        user_id: None,
     };
 
     let (tasks, total) = state.task_service.list_tasks(user_id, repo_filters).await?;

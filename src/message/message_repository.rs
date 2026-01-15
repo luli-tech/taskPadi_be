@@ -61,6 +61,20 @@ impl MessageRepository {
         Ok(messages)
     }
 
+    pub async fn count_conversation(&self, user_id: Uuid, other_user_id: Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM messages
+             WHERE (sender_id = $1 AND receiver_id = $2)
+                OR (sender_id = $2 AND receiver_id = $1)",
+        )
+        .bind(user_id)
+        .bind(other_user_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
     pub async fn find_user_conversations(&self, user_id: Uuid) -> Result<Vec<ConversationUser>> {
         let conversations = sqlx::query_as::<_, ConversationUser>(
             "WITH latest_messages AS (

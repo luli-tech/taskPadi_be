@@ -1,4 +1,8 @@
 use crate::{
+    admin::{
+        handlers as admin_handlers,
+        dto as admin_dto,
+    },
     auth::{
         auth_dto::{AuthResponse, LoginRequest, RefreshTokenRequest, RefreshTokenResponse, RegisterRequest},
         auth_handlers,
@@ -64,12 +68,15 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::user::user_handlers::get_current_user,
         crate::user::user_handlers::update_current_user,
         crate::user::user_handlers::get_user_stats,
-        crate::user::user_handlers::get_all_users,
-        crate::user::user_handlers::get_user_by_id,
-        crate::user::user_handlers::admin_update_user,
-        crate::user::user_handlers::delete_user,
-        crate::user::user_handlers::update_user_status,
-        crate::user::user_handlers::update_admin_status,
+        crate::admin::handlers::get_all_users,
+        crate::admin::handlers::get_user_by_id,
+        crate::admin::handlers::admin_update_user,
+        crate::admin::handlers::delete_user,
+        crate::admin::handlers::update_user_status,
+        crate::admin::handlers::update_admin_status,
+        crate::admin::handlers::get_all_tasks,
+        crate::admin::handlers::get_user_tasks,
+        crate::admin::handlers::delete_task,
         crate::message::message_handlers::send_message,
         crate::message::message_handlers::get_conversation,
         crate::message::message_handlers::get_conversations,
@@ -90,6 +97,9 @@ use utoipa_swagger_ui::SwaggerUi;
             UserStatsResponse,
             SendMessageRequest,
             ConversationUser,
+            admin_dto::AdminUpdateUserRequest,
+            admin_dto::UpdateUserStatusRequest,
+            admin_dto::UpdateAdminStatusRequest,
             User,
             UserResponse,
             Task,
@@ -205,15 +215,22 @@ pub fn create_router(state: AppState) -> Router {
 
     // Admin routes
     let admin_routes = Router::new()
-        .route("/users", get(user_handlers::get_all_users))
-        .route("/users/:user_id", get(user_handlers::get_user_by_id)
-            .put(user_handlers::admin_update_user)
-            .delete(user_handlers::delete_user))
-        .route("/users/:user_id/status", patch(user_handlers::update_user_status))
-        .route("/users/:user_id/admin", patch(user_handlers::update_admin_status))
+        .route("/users", get(admin_handlers::get_all_users))
+        .route("/users/:user_id", get(admin_handlers::get_user_by_id)
+            .put(admin_handlers::admin_update_user)
+            .delete(admin_handlers::delete_user))
+        .route("/users/:user_id/status", patch(admin_handlers::update_user_status))
+        .route("/users/:user_id/admin", patch(admin_handlers::update_admin_status))
+        .route("/users/:user_id/tasks", get(admin_handlers::get_user_tasks))
+        .route("/tasks", get(admin_handlers::get_all_tasks))
+        .route("/tasks/:task_id", delete(admin_handlers::delete_task))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
-            crate::middleware::admin_middleware,
+            crate::admin::admin_middleware::admin_middleware,
+        ))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
         ));
 
     let message_routes = Router::new()

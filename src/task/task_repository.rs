@@ -17,6 +17,7 @@ pub struct TaskFilters {
     pub sort_order: Option<String>,
     pub page: Option<u32>,
     pub limit: Option<u32>,
+    pub user_id: Option<Uuid>,
 }
 
 impl TaskRepository {

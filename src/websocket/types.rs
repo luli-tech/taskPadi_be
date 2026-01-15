@@ -13,6 +13,8 @@ pub enum WsMessage {
     TaskMemberRemoved(TaskMemberRemovedPayload),
     MessageDelivered(MessageDeliveredPayload),
     Error(ErrorPayload),
+    Ping,
+    Pong,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -88,4 +90,5 @@ pub enum ClientMessage {
     MarkMessageDelivered {
         message_id: Uuid,
     },
+    Ping,
 }

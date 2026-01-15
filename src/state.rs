@@ -14,6 +14,10 @@ use crate::{
     auth::auth_service::AuthService,
     message::message_service::MessageService,
     websocket::ConnectionManager,
+    admin::{
+        repository::AdminRepository,
+        service::AdminService,
+    },
 };
 
 
@@ -25,7 +29,7 @@ pub struct AppState {
     pub oauth_client: BasicClient,
     pub notification_tx: broadcast::Sender<String>,
     pub task_tx: broadcast::Sender<(uuid::Uuid, crate::task::task_models::Task)>,
-    pub ws_connections: Arc<ConnectionManager>,
+    pub ws_connections: ConnectionManager,
     pub user_repository: UserRepository,
     pub task_repository: TaskRepository,
     pub notification_repository: NotificationRepository,
@@ -35,6 +39,8 @@ pub struct AppState {
     pub task_service: TaskService,
     pub auth_service: AuthService,
     pub message_service: MessageService,
+    pub admin_repository: AdminRepository,
+    pub admin_service: AdminService,
 }
 
 #[derive(Clone)]

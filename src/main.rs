@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (task_tx, _) = broadcast::channel(100);
 
     // Create WebSocket connection manager
-    let ws_connections = Arc::new(crate::websocket::ConnectionManager::new());
+    let ws_connections = crate::websocket::ConnectionManager::new();
 
     // Create repositories
     let user_repository = crate::user::user_repository::UserRepository::new(db.clone());
@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let notification_repository = crate::notification::notification_repository::NotificationRepository::new(db.clone());
     let message_repository = crate::message::message_repository::MessageRepository::new(db.clone());
     let refresh_token_repository = crate::auth::auth_repository::RefreshTokenRepository::new(db.clone());
+    let admin_repository = crate::admin::repository::AdminRepository::new(db.clone());
 
     // Create services
     let user_service = crate::user::user_service::UserService::new(
@@ -83,7 +84,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         refresh_token_repository.clone(),
         config.jwt_secret.clone(),
     );
-    let message_service = crate::message::message_service::MessageService::new(message_repository.clone());
+    let message_service = crate::message::message_service::MessageService::new(
+        message_repository.clone(),
+        ws_connections.clone(),
+        notification_repository.clone(),
+    );
+    let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
 
     // Create application state
     let state = AppState {
@@ -102,6 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         task_service,
         auth_service,
         message_service,
+        admin_repository,
+        admin_service,
     };
 
     // Start notification service

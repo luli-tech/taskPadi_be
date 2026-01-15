@@ -72,10 +72,32 @@ async fn handle_socket(socket: WebSocket, user_id: Uuid, state: AppState) {
         }
     });
 
+    // Spawn heartbeat task
+    let tx_heartbeat = tx.clone();
+    let mut heartbeat_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            interval.tick().await;
+            if tx_heartbeat.send(WsMessage::Ping).is_err() {
+                break;
+            }
+        }
+    });
+
     // Wait for either task to finish
     tokio::select! {
-        _ = &mut send_task => recv_task.abort(),
-        _ = &mut recv_task => send_task.abort(),
+        _ = &mut send_task => {
+            recv_task.abort();
+            heartbeat_task.abort();
+        },
+        _ = &mut recv_task => {
+            send_task.abort();
+            heartbeat_task.abort();
+        },
+        _ = &mut heartbeat_task => {
+            send_task.abort();
+            recv_task.abort();
+        }
     }
 
     // Remove connection and broadcast offline status
@@ -112,38 +134,12 @@ async fn process_client_message(
                 .await?
                 .ok_or(AppError::NotFound("Receiver not found".to_string()))?;
 
-            // Create message in database
-            let message = state
-                .message_repository
-                .create(user_id, receiver_id, &content, image_url.as_deref())
-                .await?;
-
-            // Send via WebSocket to receiver
-            let ws_message = WsMessage::ChatMessage(ChatMessagePayload {
-                id: message.id,
-                sender_id: message.sender_id,
-                receiver_id: message.receiver_id,
-                content: message.content.clone(),
-                image_url: message.image_url.clone(),
-                created_at: message.created_at.to_rfc3339(),
-            });
-
-            state.ws_connections.send_to_user(&receiver_id, ws_message.clone());
-            
-            // Also send back to sender for confirmation
-            state.ws_connections.send_to_user(&user_id, ws_message);
-
-            // Create notification for receiver
-            let notification_message = if message.image_url.is_some() {
-                "New message with image".to_string()
-            } else {
-                format!("New message: {}", &message.content)
-            };
-
-            let _ = state
-                .notification_repository
-                .create(receiver_id, None, &notification_message)
-                .await;
+            // Use MessageService for consistent behavior
+            state.message_service.send_message(user_id, crate::message::message_dto::SendMessageRequest {
+                receiver_id,
+                content,
+                image_url,
+            }).await?;
         }
         ClientMessage::TypingIndicator {
             conversation_with,
@@ -158,7 +154,10 @@ async fn process_client_message(
         }
         ClientMessage::MarkMessageDelivered { message_id } => {
             // Mark message as read
-            let _ = state.message_repository.mark_as_read(message_id, user_id).await;
+            let _ = state.message_service.mark_read(user_id, message_id).await;
+        }
+        ClientMessage::Ping => {
+            let _ = _tx.send(WsMessage::Pong);
         }
     }
 
