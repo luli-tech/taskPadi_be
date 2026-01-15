@@ -1,0 +1,116 @@
+# Task Manager API Documentation
+
+## Authentication (Base: /api/auth)
+- POST /register
+  - Fields: username (str), email (str), password (str)
+  - Description: Creates a new user account.
+- POST /login
+  - Fields: email (str), password (str)
+  - Description: Authenticates user and returns JWT tokens.
+- POST /refresh
+  - Fields: refresh_token (str)
+  - Description: Issues a new access token using a valid refresh token.
+- POST /logout
+  - Fields: refresh_token (str)
+  - Description: Revokes the refresh token and logs out the user.
+- GET /google
+  - Description: Initiates Google OAuth2 login flow.
+- GET /google/callback
+  - Description: Handles the callback from Google OAuth2.
+
+## User Profile (Base: /api/users)
+- GET /me
+  - Description: Returns the currently authenticated user's profile.
+- PUT /me
+  - Fields: username (opt), bio (opt), theme (opt), avatar_url (opt)
+  - Description: Updates the current user's profile information.
+- GET /me/stats
+  - Description: Returns task statistics for the current user (total, pending, completed, etc.).
+
+## Tasks (Base: /api/tasks)
+- GET /
+  - Query Params: status, priority, search, sort_by, sort_order, page, limit
+  - Description: Retrieves a paginated list of tasks (including shared ones).
+- POST /
+  - Fields: title (str), description (opt), priority (opt), due_date (opt), reminder_time (opt)
+  - Description: Creates a new task.
+- GET /:task_id
+  - Description: Retrieves detailed information about a specific task.
+- PUT /:task_id
+  - Fields: title (opt), description (opt), status (opt), priority (opt), due_date (opt), reminder_time (opt)
+  - Description: Updates an existing task.
+- DELETE /:task_id
+  - Description: Deletes a task (only allowed for task owner).
+- PATCH /:task_id/status
+  - Fields: status (str)
+  - Description: Quickly updates only the status of a task.
+- POST /:task_id/share
+  - Fields: user_ids (list)
+  - Description: Shares a task with other users (Collaboration).
+- DELETE /:task_id/members/:user_id
+  - Description: Removes a collaborator from a task.
+- GET /:task_id/members
+  - Description: Lists all members/collaborators of a task.
+- GET /:task_id/activity
+  - Description: Returns the activity logs (history) for a specific task.
+- GET /stream (SSE)
+  - Description: Server-Sent Events stream for real-time task updates.
+
+## Messages (Base: /api/messages)
+- GET /conversations
+  - Description: Retrieves a list of all active conversations for the user.
+- POST /
+  - Fields: receiver_id (uuid), content (str), image_url (opt)
+  - Description: Sends a direct message to another user.
+- GET /conversations/:user_id
+  - Query Params: page, limit
+  - Description: Retrieves paginated message history with a specific user.
+- PUT /:message_id/read
+  - Description: Marks a specific message as read.
+
+## Notifications (Base: /api/notifications)
+- GET /
+  - Description: Lists all notifications for the current user.
+- PATCH /:id/read
+  - Description: Marks a notification as read.
+- DELETE /:id
+  - Description: Deletes a specific notification.
+- PUT /preferences
+  - Fields: notification_enabled (bool)
+  - Description: Updates global notification settings for the user.
+- GET /stream (SSE)
+  - Description: Server-Sent Events stream for real-time notification delivery.
+
+## Admin Management (Base: /api/admin)
+- GET /users
+  - Query Params: page, limit
+  - Description: (Admin only) Lists all registered users.
+- GET /users/:user_id
+  - Description: (Admin only) Retrieves detailed profile for any user.
+- PUT /users/:user_id
+  - Fields: username, email, bio, theme, avatar_url, is_admin, is_active
+  - Description: (Admin only) Manually updates user account details.
+- DELETE /users/:user_id
+  - Description: (Admin only) Deletes a user account.
+- PATCH /users/:user_id/status
+  - Fields: is_active (bool)
+  - Description: (Admin only) Activates or deactivates a user account.
+- PATCH /users/:user_id/admin
+  - Fields: is_admin (bool)
+  - Description: (Admin only) Promotes or demotes a user to/from Admin.
+- GET /tasks
+  - Query Params: status, priority, search, user_id, page, limit
+  - Description: (Admin only) Searches and lists all tasks in the entire system.
+- GET /users/:user_id/tasks
+  - Description: (Admin only) Lists all tasks belonging to a specific user.
+- DELETE /tasks/:task_id
+  - Description: (Admin only) Force deletes any task in the system.
+
+## WebSocket Real-time (at /ws)
+Requires authentication via Bearer token in sub-protocol or headers.
+Supports:
+- Real-time messages (type: chat_message)
+- Typing indicators (type: typing_indicator)
+- User status updates (type: user_status)
+- Heartbeats (type: ping/pong)
+- Error reporting (type: error)

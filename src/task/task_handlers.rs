@@ -21,13 +21,19 @@ use super::{
 
 #[derive(Deserialize)]
 pub struct TaskFilters {
-    status: Option<String>,
-    priority: Option<String>,
-    search: Option<String>,
-    sort_by: Option<String>,
-    sort_order: Option<String>,
-    page: Option<u32>,
-    limit: Option<u32>,
+    pub status: Option<String>,
+    pub statuses: Option<Vec<String>>,
+    pub priority: Option<String>,
+    pub priorities: Option<Vec<String>>,
+    pub search: Option<String>,
+    pub created_from: Option<DateTime<Utc>>,
+    pub created_to: Option<DateTime<Utc>>,
+    pub due_from: Option<DateTime<Utc>>,
+    pub due_to: Option<DateTime<Utc>>,
+    pub sort_by: Option<String>,
+    pub sort_order: Option<String>,
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
 }
 
 /// Get all tasks for the authenticated user
@@ -36,8 +42,14 @@ pub struct TaskFilters {
     path = "/api/tasks",
     params(
         ("status" = Option<String>, Query, description = "Filter by status"),
+        ("statuses" = Option<[String]>, Query, description = "Multiple statuses"),
         ("priority" = Option<String>, Query, description = "Filter by priority"),
+        ("priorities" = Option<[String]>, Query, description = "Multiple priorities"),
         ("search" = Option<String>, Query, description = "Search by title or description"),
+        ("created_from" = Option<DateTime<Utc>>, Query, description = "Filter by creation date (from)"),
+        ("created_to" = Option<DateTime<Utc>>, Query, description = "Filter by creation date (to)"),
+        ("due_from" = Option<DateTime<Utc>>, Query, description = "Filter by due date (from)"),
+        ("due_to" = Option<DateTime<Utc>>, Query, description = "Filter by due date (to)"),
         ("sort_by" = Option<String>, Query, description = "Sort by field (priority, due_date, created_at)"),
         ("sort_order" = Option<String>, Query, description = "Sort order (asc, desc)"),
         ("page" = Option<u32>, Query, description = "Page number"),
@@ -60,8 +72,14 @@ pub async fn get_tasks(
 
     let repo_filters = crate::task::task_repository::TaskFilters {
         status: filters.status,
+        statuses: filters.statuses,
         priority: filters.priority,
+        priorities: filters.priorities,
         search: filters.search,
+        created_from: filters.created_from,
+        created_to: filters.created_to,
+        due_from: filters.due_from,
+        due_to: filters.due_to,
         sort_by: filters.sort_by,
         sort_order: filters.sort_order,
         page: Some(page),

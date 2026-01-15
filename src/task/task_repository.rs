@@ -11,8 +11,14 @@ pub struct TaskRepository {
 
 pub struct TaskFilters {
     pub status: Option<String>,
+    pub statuses: Option<Vec<String>>,
     pub priority: Option<String>,
+    pub priorities: Option<Vec<String>>,
     pub search: Option<String>,
+    pub created_from: Option<DateTime<Utc>>,
+    pub created_to: Option<DateTime<Utc>>,
+    pub due_from: Option<DateTime<Utc>>,
+    pub due_to: Option<DateTime<Utc>>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u32>,
@@ -30,20 +36,39 @@ impl TaskRepository {
         let mut count_query = "SELECT COUNT(*) FROM tasks WHERE user_id = $1".to_string();
         let mut params_count = 1;
 
-        if let Some(ref _status) = filters.status {
+        // Status filters
+        if let Some(ref statuses) = filters.statuses {
+            if !statuses.is_empty() {
+                let place_holders: Vec<String> = statuses.iter().enumerate().map(|(i, _)| format!("${}", params_count + i + 1)).collect();
+                let filter = format!(" AND status IN ({})", place_holders.join(", "));
+                query.push_str(&filter);
+                count_query.push_str(&filter);
+                params_count += statuses.len() as i32;
+            }
+        } else if let Some(ref _status) = filters.status {
             params_count += 1;
             let filter = format!(" AND status = ${}", params_count);
             query.push_str(&filter);
             count_query.push_str(&filter);
         }
 
-        if let Some(ref _priority) = filters.priority {
+        // Priority filters
+        if let Some(ref priorities) = filters.priorities {
+            if !priorities.is_empty() {
+                let place_holders: Vec<String> = priorities.iter().enumerate().map(|(i, _)| format!("${}", params_count + i + 1)).collect();
+                let filter = format!(" AND priority IN ({})", place_holders.join(", "));
+                query.push_str(&filter);
+                count_query.push_str(&filter);
+                params_count += priorities.len() as i32;
+            }
+        } else if let Some(ref _priority) = filters.priority {
             params_count += 1;
             let filter = format!(" AND priority = ${}", params_count);
             query.push_str(&filter);
             count_query.push_str(&filter);
         }
 
+        // Search filter
         if let Some(ref _search) = filters.search {
             params_count += 1;
             let filter = format!(" AND (title ILIKE ${} OR description ILIKE ${})", params_count, params_count);
@@ -51,58 +76,102 @@ impl TaskRepository {
             count_query.push_str(&filter);
         }
 
-        // Calculate total count before pagination
-        let mut count_db_query = sqlx::query_scalar::<_, i64>(&count_query).bind(user_id);
+        // Date range filters
+        if let Some(ref _from) = filters.created_from {
+            params_count += 1;
+            let filter = format!(" AND created_at >= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _to) = filters.created_to {
+            params_count += 1;
+            let filter = format!(" AND created_at <= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _from) = filters.due_from {
+            params_count += 1;
+            let filter = format!(" AND due_date >= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _to) = filters.due_to {
+            params_count += 1;
+            let filter = format!(" AND due_date <= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
 
-        if let Some(status) = &filters.status {
+        // Create count query
+        let mut count_db_query = sqlx::query_scalar::<_, i64>(&count_query).bind(user_id);
+        
+        // Bind parameters for count query
+        if let Some(statuses) = &filters.statuses {
+            for status in statuses { count_db_query = count_db_query.bind(status); }
+        } else if let Some(status) = &filters.status {
             count_db_query = count_db_query.bind(status);
         }
-        if let Some(priority) = &filters.priority {
+
+        if let Some(priorities) = &filters.priorities {
+            for priority in priorities { count_db_query = count_db_query.bind(priority); }
+        } else if let Some(priority) = &filters.priority {
             count_db_query = count_db_query.bind(priority);
         }
+
         if let Some(search) = &filters.search {
-            let search_pattern = format!("%{}%", search);
-            count_db_query = count_db_query.bind(search_pattern);
+            count_db_query = count_db_query.bind(format!("%{}%", search));
         }
+
+        if let Some(from) = filters.created_from { count_db_query = count_db_query.bind(from); }
+        if let Some(to) = filters.created_to { count_db_query = count_db_query.bind(to); }
+        if let Some(from) = filters.due_from { count_db_query = count_db_query.bind(from); }
+        if let Some(to) = filters.due_to { count_db_query = count_db_query.bind(to); }
 
         let total_count = count_db_query.fetch_one(&self.pool).await?;
 
-        // Add sorting
+        // Sorting
         let sort_column = match filters.sort_by.as_deref() {
             Some("priority") => "priority",
             Some("due_date") => "due_date",
             Some("created_at") => "created_at",
             _ => "created_at",
         };
-
         let sort_direction = match filters.sort_order.as_deref() {
             Some("asc") => "ASC",
             _ => "DESC",
         };
-
         query.push_str(&format!(" ORDER BY {} {}", sort_column, sort_direction));
 
-        // Add pagination
+        // Pagination
         let page = filters.page.unwrap_or(1);
         let limit = filters.limit.unwrap_or(10);
         let offset = (page - 1) * limit;
-
         query.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
 
+        // Create main query
         let mut db_query = sqlx::query_as::<_, Task>(&query).bind(user_id);
-
-        if let Some(status) = filters.status {
+        
+        // Bind parameters for main query
+        if let Some(statuses) = filters.statuses {
+            for status in statuses { db_query = db_query.bind(status); }
+        } else if let Some(status) = filters.status {
             db_query = db_query.bind(status);
         }
 
-        if let Some(priority) = filters.priority {
+        if let Some(priorities) = filters.priorities {
+            for priority in priorities { db_query = db_query.bind(priority); }
+        } else if let Some(priority) = filters.priority {
             db_query = db_query.bind(priority);
         }
 
         if let Some(search) = filters.search {
-            let search_pattern = format!("%{}%", search);
-            db_query = db_query.bind(search_pattern);
+            db_query = db_query.bind(format!("%{}%", search));
         }
+
+        if let Some(from) = filters.created_from { db_query = db_query.bind(from); }
+        if let Some(to) = filters.created_to { db_query = db_query.bind(to); }
+        if let Some(from) = filters.due_from { db_query = db_query.bind(from); }
+        if let Some(to) = filters.due_to { db_query = db_query.bind(to); }
 
         let tasks = db_query.fetch_all(&self.pool).await?;
         Ok((tasks, total_count))
@@ -365,20 +434,39 @@ impl TaskRepository {
         
         let mut params_count = 1;
 
-        if let Some(ref _status) = filters.status {
+        // Status filters
+        if let Some(ref statuses) = filters.statuses {
+            if !statuses.is_empty() {
+                let place_holders: Vec<String> = statuses.iter().enumerate().map(|(i, _)| format!("${}", params_count + i + 1)).collect();
+                let filter = format!(" AND t.status IN ({})", place_holders.join(", "));
+                query.push_str(&filter);
+                count_query.push_str(&filter);
+                params_count += statuses.len() as i32;
+            }
+        } else if let Some(ref _status) = filters.status {
             params_count += 1;
             let filter = format!(" AND t.status = ${}", params_count);
             query.push_str(&filter);
             count_query.push_str(&filter);
         }
 
-        if let Some(ref _priority) = filters.priority {
+        // Priority filters
+        if let Some(ref priorities) = filters.priorities {
+            if !priorities.is_empty() {
+                let place_holders: Vec<String> = priorities.iter().enumerate().map(|(i, _)| format!("${}", params_count + i + 1)).collect();
+                let filter = format!(" AND t.priority IN ({})", place_holders.join(", "));
+                query.push_str(&filter);
+                count_query.push_str(&filter);
+                params_count += priorities.len() as i32;
+            }
+        } else if let Some(ref _priority) = filters.priority {
             params_count += 1;
             let filter = format!(" AND t.priority = ${}", params_count);
             query.push_str(&filter);
             count_query.push_str(&filter);
         }
 
+        // Search filter
         if let Some(ref _search) = filters.search {
             params_count += 1;
             let filter = format!(" AND (t.title ILIKE ${} OR t.description ILIKE ${})", params_count, params_count);
@@ -386,58 +474,102 @@ impl TaskRepository {
             count_query.push_str(&filter);
         }
 
+        // Date range filters
+        if let Some(ref _from) = filters.created_from {
+            params_count += 1;
+            let filter = format!(" AND t.created_at >= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _to) = filters.created_to {
+            params_count += 1;
+            let filter = format!(" AND t.created_at <= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _from) = filters.due_from {
+            params_count += 1;
+            let filter = format!(" AND t.due_date >= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+        if let Some(ref _to) = filters.due_to {
+            params_count += 1;
+            let filter = format!(" AND t.due_date <= ${}", params_count);
+            query.push_str(&filter);
+            count_query.push_str(&filter);
+        }
+
         // Calculate total count
         let mut count_db_query = sqlx::query_scalar::<_, i64>(&count_query).bind(user_id);
-
-        if let Some(status) = &filters.status {
+        
+        // Bind parameters for count query
+        if let Some(statuses) = &filters.statuses {
+            for status in statuses { count_db_query = count_db_query.bind(status); }
+        } else if let Some(status) = &filters.status {
             count_db_query = count_db_query.bind(status);
         }
-        if let Some(priority) = &filters.priority {
+
+        if let Some(priorities) = &filters.priorities {
+            for priority in priorities { count_db_query = count_db_query.bind(priority); }
+        } else if let Some(priority) = &filters.priority {
             count_db_query = count_db_query.bind(priority);
         }
+
         if let Some(search) = &filters.search {
-            let search_pattern = format!("%{}%", search);
-            count_db_query = count_db_query.bind(search_pattern);
+            count_db_query = count_db_query.bind(format!("%{}%", search));
         }
+
+        if let Some(from) = filters.created_from { count_db_query = count_db_query.bind(from); }
+        if let Some(to) = filters.created_to { count_db_query = count_db_query.bind(to); }
+        if let Some(from) = filters.due_from { count_db_query = count_db_query.bind(from); }
+        if let Some(to) = filters.due_to { count_db_query = count_db_query.bind(to); }
 
         let total_count = count_db_query.fetch_one(&self.pool).await?;
 
-        // Add sorting
+        // Sorting
         let sort_column = match filters.sort_by.as_deref() {
             Some("priority") => "t.priority",
             Some("due_date") => "t.due_date",
             Some("created_at") => "t.created_at",
             _ => "t.created_at",
         };
-
         let sort_direction = match filters.sort_order.as_deref() {
             Some("asc") => "ASC",
             _ => "DESC",
         };
-
         query.push_str(&format!(" ORDER BY {} {}", sort_column, sort_direction));
 
-        // Add pagination
+        // Pagination
         let page = filters.page.unwrap_or(1);
         let limit = filters.limit.unwrap_or(10);
         let offset = (page - 1) * limit;
-
         query.push_str(&format!(" LIMIT {} OFFSET {}", limit, offset));
 
+        // Create main query
         let mut db_query = sqlx::query_as::<_, Task>(&query).bind(user_id);
-
-        if let Some(status) = filters.status {
+        
+        // Bind parameters for main query
+        if let Some(statuses) = filters.statuses {
+            for status in statuses { db_query = db_query.bind(status); }
+        } else if let Some(status) = filters.status {
             db_query = db_query.bind(status);
         }
 
-        if let Some(priority) = filters.priority {
+        if let Some(priorities) = filters.priorities {
+            for priority in priorities { db_query = db_query.bind(priority); }
+        } else if let Some(priority) = filters.priority {
             db_query = db_query.bind(priority);
         }
 
         if let Some(search) = filters.search {
-            let search_pattern = format!("%{}%", search);
-            db_query = db_query.bind(search_pattern);
+            db_query = db_query.bind(format!("%{}%", search));
         }
+
+        if let Some(from) = filters.created_from { db_query = db_query.bind(from); }
+        if let Some(to) = filters.created_to { db_query = db_query.bind(to); }
+        if let Some(from) = filters.due_from { db_query = db_query.bind(from); }
+        if let Some(to) = filters.due_to { db_query = db_query.bind(to); }
 
         let tasks = db_query.fetch_all(&self.pool).await?;
         Ok((tasks, total_count))
