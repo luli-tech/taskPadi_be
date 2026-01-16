@@ -111,7 +111,7 @@ impl AdminRepository {
             query.push_str(&format!(", avatar_url = ${}", param_count));
             bindings.push("avatar_url".to_string());
         }
-        if let Some(is_adm) = is_admin {
+        if let Some(_is_adm) = is_admin {
             param_count += 1;
             query.push_str(&format!(", is_admin = ${}", param_count));
             bindings.push("is_admin".to_string());
@@ -153,7 +153,7 @@ impl AdminRepository {
     pub async fn find_all_tasks(&self, filters: TaskFilters) -> Result<(Vec<Task>, i64)> {
         let mut query = "SELECT t.* FROM tasks t WHERE 1=1".to_string();
         let mut count_query = "SELECT COUNT(*) FROM tasks t WHERE 1=1".to_string();
-        let mut params_count = 0;
+        let mut params_count: usize = 0;
 
         if let Some(ref user_id) = filters.user_id {
             params_count += 1;
@@ -169,7 +169,7 @@ impl AdminRepository {
                 let filter = format!(" AND t.status IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += statuses.len() as i32;
+                params_count += statuses.len();
             }
         } else if let Some(ref _status) = filters.status {
             params_count += 1;
@@ -185,7 +185,7 @@ impl AdminRepository {
                 let filter = format!(" AND t.priority IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += priorities.len() as i32;
+                params_count += priorities.len();
             }
         } else if let Some(ref _priority) = filters.priority {
             params_count += 1;

@@ -41,7 +41,7 @@ pub async fn register(
            // Hash password using imported function
     let password_hash = hash_password(&payload.password)?;
 
-    let (user, access_token, refresh_token) = state.auth_service
+    let (user, _access_token, _refresh_token) = state.auth_service
         .register(&payload.username, &payload.email, &password_hash)
         .await
 

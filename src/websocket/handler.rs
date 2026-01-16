@@ -13,7 +13,7 @@ use crate::{
     error::{AppError, Result},
     middleware::AuthUser,
     state::AppState,
-    websocket::types::{ChatMessagePayload, ClientMessage, ErrorPayload, UserStatusPayload, WsMessage},
+    websocket::types::{ClientMessage, ErrorPayload, UserStatusPayload, WsMessage},
 };
 
 use super::connection::WsSender;

@@ -1,7 +1,7 @@
 use crate::error::Result;
 use crate::message::message_repository::MessageRepository;
 use crate::message::message_models::Message;
-use crate::message::message_dto::{SendMessageRequest, ConversationUser};
+use crate::message::message_dto::SendMessageRequest;
 use crate::websocket::ConnectionManager;
 use crate::notification::notification_repository::NotificationRepository;
 use crate::websocket::types::{WsMessage, ChatMessagePayload};

@@ -34,7 +34,7 @@ impl TaskRepository {
     pub async fn find_all(&self, user_id: Uuid, filters: TaskFilters) -> Result<(Vec<Task>, i64)> {
         let mut query = "SELECT * FROM tasks WHERE user_id = $1".to_string();
         let mut count_query = "SELECT COUNT(*) FROM tasks WHERE user_id = $1".to_string();
-        let mut params_count = 1;
+        let mut params_count: usize = 1;
 
         // Status filters
         if let Some(ref statuses) = filters.statuses {
@@ -43,7 +43,7 @@ impl TaskRepository {
                 let filter = format!(" AND status IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += statuses.len() as i32;
+                params_count += statuses.len();
             }
         } else if let Some(ref _status) = filters.status {
             params_count += 1;
@@ -59,7 +59,7 @@ impl TaskRepository {
                 let filter = format!(" AND priority IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += priorities.len() as i32;
+                params_count += priorities.len();
             }
         } else if let Some(ref _priority) = filters.priority {
             params_count += 1;
@@ -432,7 +432,7 @@ impl TaskRepository {
                                LEFT JOIN task_members tm ON t.id = tm.task_id
                                WHERE (t.user_id = $1 OR tm.user_id = $1)".to_string();
         
-        let mut params_count = 1;
+        let mut params_count: usize = 1;
 
         // Status filters
         if let Some(ref statuses) = filters.statuses {
@@ -441,7 +441,7 @@ impl TaskRepository {
                 let filter = format!(" AND t.status IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += statuses.len() as i32;
+                params_count += statuses.len();
             }
         } else if let Some(ref _status) = filters.status {
             params_count += 1;
@@ -457,7 +457,7 @@ impl TaskRepository {
                 let filter = format!(" AND t.priority IN ({})", place_holders.join(", "));
                 query.push_str(&filter);
                 count_query.push_str(&filter);
-                params_count += priorities.len() as i32;
+                params_count += priorities.len();
             }
         } else if let Some(ref _priority) = filters.priority {
             params_count += 1;
