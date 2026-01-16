@@ -37,12 +37,32 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let config = Arc::new(Config::from_env());
 
-    // Create database connection pools changed to
+    // Create database connection pools
     let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
+        .map_err(|_| {
+            let error = "DATABASE_URL environment variable is not set. Please set it in your .env file or environment.";
+            eprintln!("❌ Error: {}", error);
+            eprintln!("💡 Example: DATABASE_URL=postgresql://username:password@localhost:5432/task_manager");
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, error)
+        })?;
     
-    tracing::info!("Connecting to database...");
-    let db = create_pool(&database_url).await?;
+    // Sanitize URL for logging (hide password)
+    let url_for_logging = database_url
+        .split('@')
+        .next()
+        .map(|part| format!("{}@<hidden>", part))
+        .unwrap_or_else(|| "<invalid format>".to_string());
+    
+    tracing::info!("Connecting to database at {}...", url_for_logging);
+    let db = create_pool(&database_url).await.map_err(|e| {
+        let error_msg = format!(
+            "Failed to connect to database: {}. Please check that:\n  - PostgreSQL is running\n  - DATABASE_URL is correct\n  - The hostname is resolvable\n  - Network connectivity is available",
+            e
+        );
+        eprintln!("❌ {}", error_msg);
+        eprintln!("💡 Current DATABASE_URL format: {}", url_for_logging);
+        e
+    })?;
 
     // Run migrations
     tracing::info!("Running migrations...");
