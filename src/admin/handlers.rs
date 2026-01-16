@@ -24,8 +24,14 @@ use crate::{
 #[derive(serde::Deserialize)]
 pub struct AdminTaskFilters {
     pub status: Option<String>,
+    pub statuses: Option<Vec<String>>,
     pub priority: Option<String>,
+    pub priorities: Option<Vec<String>>,
     pub search: Option<String>,
+    pub created_from: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_to: Option<chrono::DateTime<chrono::Utc>>,
+    pub due_from: Option<chrono::DateTime<chrono::Utc>>,
+    pub due_to: Option<chrono::DateTime<chrono::Utc>>,
     pub sort_by: Option<String>,
     pub sort_order: Option<String>,
     pub page: Option<u32>,
@@ -40,8 +46,14 @@ pub struct AdminTaskFilters {
     tag = "admin",
     params(
         ("status" = Option<String>, Query, description = "Filter by status"),
+        ("statuses" = Option<[String]>, Query, description = "Multiple statuses"),
         ("priority" = Option<String>, Query, description = "Filter by priority"),
+        ("priorities" = Option<[String]>, Query, description = "Multiple priorities"),
         ("search" = Option<String>, Query, description = "Search by title"),
+        ("created_from" = Option<DateTime<Utc>>, Query, description = "Created from"),
+        ("created_to" = Option<DateTime<Utc>>, Query, description = "Created to"),
+        ("due_from" = Option<DateTime<Utc>>, Query, description = "Due from"),
+        ("due_to" = Option<DateTime<Utc>>, Query, description = "Due to"),
         ("user_id" = Option<Uuid>, Query, description = "Filter by user ID"),
         ("page" = Option<u32>, Query, description = "Page number"),
         ("limit" = Option<u32>, Query, description = "Items per page")
@@ -64,8 +76,14 @@ pub async fn get_all_tasks(
 
     let repo_filters = TaskFilters {
         status: filters.status,
+        statuses: filters.statuses,
         priority: filters.priority,
+        priorities: filters.priorities,
         search: filters.search,
+        created_from: filters.created_from,
+        created_to: filters.created_to,
+        due_from: filters.due_from,
+        due_to: filters.due_to,
         sort_by: filters.sort_by,
         sort_order: filters.sort_order,
         page: Some(page),
@@ -93,8 +111,14 @@ pub async fn get_all_tasks(
     params(
         ("user_id" = Uuid, Path, description = "User ID"),
         ("status" = Option<String>, Query, description = "Filter by status"),
+        ("statuses" = Option<[String]>, Query, description = "Multiple statuses"),
         ("priority" = Option<String>, Query, description = "Filter by priority"),
+        ("priorities" = Option<[String]>, Query, description = "Multiple priorities"),
         ("search" = Option<String>, Query, description = "Search by title"),
+        ("created_from" = Option<DateTime<Utc>>, Query, description = "Created from"),
+        ("created_to" = Option<DateTime<Utc>>, Query, description = "Created to"),
+        ("due_from" = Option<DateTime<Utc>>, Query, description = "Due from"),
+        ("due_to" = Option<DateTime<Utc>>, Query, description = "Due to"),
         ("page" = Option<u32>, Query, description = "Page number"),
         ("limit" = Option<u32>, Query, description = "Items per page")
     ),
@@ -123,8 +147,14 @@ pub async fn get_user_tasks(
 
     let repo_filters = TaskFilters {
         status: filters.status,
+        statuses: filters.statuses,
         priority: filters.priority,
+        priorities: filters.priorities,
         search: filters.search,
+        created_from: filters.created_from,
+        created_to: filters.created_to,
+        due_from: filters.due_from,
+        due_to: filters.due_to,
         sort_by: filters.sort_by,
         sort_order: filters.sort_order,
         page: Some(page),

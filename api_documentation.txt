@@ -29,7 +29,7 @@
 
 ## Tasks (Base: /api/tasks)
 - GET /
-  - Query Params: status, priority, search, sort_by, sort_order, page, limit
+  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, sort_by, sort_order, page, limit
   - Description: Retrieves a paginated list of tasks (including shared ones).
 - POST /
   - Fields: title (str), description (opt), priority (opt), due_date (opt), reminder_time (opt)
@@ -99,9 +99,10 @@
   - Fields: is_admin (bool)
   - Description: (Admin only) Promotes or demotes a user to/from Admin.
 - GET /tasks
-  - Query Params: status, priority, search, user_id, page, limit
+  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, user_id, page, limit
   - Description: (Admin only) Searches and lists all tasks in the entire system.
 - GET /users/:user_id/tasks
+  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, page, limit
   - Description: (Admin only) Lists all tasks belonging to a specific user.
 - DELETE /tasks/:task_id
   - Description: (Admin only) Force deletes any task in the system.
