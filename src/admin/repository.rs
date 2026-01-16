@@ -155,7 +155,7 @@ impl AdminRepository {
         let mut count_query = "SELECT COUNT(*) FROM tasks t WHERE 1=1".to_string();
         let mut params_count: usize = 0;
 
-        if let Some(ref user_id) = filters.user_id {
+        if let Some(ref _user_id) = filters.user_id {
             params_count += 1;
             let filter = format!(" AND t.user_id = ${}", params_count);
             query.push_str(&filter);
