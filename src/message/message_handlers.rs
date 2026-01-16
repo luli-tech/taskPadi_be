@@ -14,7 +14,7 @@ use crate::{
     state::AppState,
     task::task_dto::PaginatedResponse,
     message::{
-        message_dto::SendMessageRequest,
+        message_dto::{ConversationUser, SendMessageRequest},
         message_models::MessageResponse,
     },
 };
@@ -64,18 +64,20 @@ pub async fn send_message(
     Ok((StatusCode::CREATED, Json(MessageResponse::from(message))))
 }
 
-// ... (get_conversation)
+/// Get conversation messages with a specific user
 #[utoipa::path(
     get,
-    path = "/api/messages/conversations/{other_user_id}",
+    path = "/api/messages/{user_id}",
     tag = "messages",
     params(
-        ("other_user_id" = Uuid, Path, description = "Other user ID")
+        ("user_id" = Uuid, Path, description = "Other user ID to get conversation with"),
+        ("page" = Option<u32>, Query, description = "Page number (default: 1)"),
+        ("limit" = Option<u32>, Query, description = "Items per page (default: 50)")
     ),
     responses(
-        (status = 200, description = "Conversation messages", body = Vec<MessageResponse>),
+        (status = 200, description = "Paginated conversation messages", body = PaginatedResponse<MessageResponse>),
         (status = 401, description = "Unauthorized"),
-        (status = 404, description = "Receiver not found")
+        (status = 404, description = "User not found")
     ),
     security(
         ("bearer_auth" = [])
@@ -120,13 +122,13 @@ pub async fn get_conversation(
     Ok((StatusCode::OK, Json(response)))
 }
 
-// ... (get_conversations)
+/// Get all conversations for the authenticated user
 #[utoipa::path(
     get,
     path = "/api/messages/conversations",
     tag = "messages",
     responses(
-        (status = 200, description = "List of conversations", body = Vec<MessageResponse>),
+        (status = 200, description = "List of conversations", body = Vec<ConversationUser>),
         (status = 401, description = "Unauthorized")
     ),
     security(
@@ -145,13 +147,13 @@ pub async fn get_conversations(
     Ok((StatusCode::OK, Json(conversations)))
 }
 
-// ... (mark_message_read)
+/// Mark a message as read
 #[utoipa::path(
-    put,
-    path = "/api/messages/{message_id}/read",
+    patch,
+    path = "/api/messages/{id}/read",
     tag = "messages",
     params(
-        ("message_id" = Uuid, Path, description = "Message ID")
+        ("id" = Uuid, Path, description = "Message ID to mark as read")
     ),
     responses(
         (status = 200, description = "Message marked as read"),

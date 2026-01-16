@@ -1,117 +1,515 @@
 # Task Manager API Documentation
 
-## Authentication (Base: /api/auth)
-- POST /register
-  - Fields: username (str), email (str), password (str)
-  - Description: Creates a new user account.
-- POST /login
-  - Fields: email (str), password (str)
-  - Description: Authenticates user and returns JWT tokens.
-- POST /refresh
-  - Fields: refresh_token (str)
-  - Description: Issues a new access token using a valid refresh token.
-- POST /logout
-  - Fields: refresh_token (str)
-  - Description: Revokes the refresh token and logs out the user.
-- GET /google
-  - Description: Initiates Google OAuth2 login flow.
-- GET /google/callback
-  - Description: Handles the callback from Google OAuth2.
+## Base URL
+All endpoints are prefixed with `/api` unless otherwise specified.
 
-## User Profile (Base: /api/users)
-- GET /me
-  - Description: Returns the currently authenticated user's profile.
-- PUT /me
-  - Fields: username (opt), bio (opt), theme (opt), avatar_url (opt)
-  - Description: Updates the current user's profile information.
-- GET /me/stats
-  - Description: Returns task statistics for the current user (total, pending, completed, etc.).
+## Authentication
+All protected endpoints require a Bearer token in the Authorization header:
+```
+Authorization: Bearer <your_jwt_token>
+```
 
-## Tasks (Base: /api/tasks)
-- GET /
-  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, sort_by, sort_order, page, limit
-  - Description: Retrieves a paginated list of tasks (including shared ones).
-- POST /
-  - Fields: title (str), description (opt), priority (opt), due_date (opt), reminder_time (opt)
-  - Description: Creates a new task.
-- GET /:task_id
-  - Description: Retrieves detailed information about a specific task.
-- PUT /:task_id
-  - Fields: title (opt), description (opt), status (opt), priority (opt), due_date (opt), reminder_time (opt)
-  - Description: Updates an existing task.
-- DELETE /:task_id
-  - Description: Deletes a task (only allowed for task owner).
-- PATCH /:task_id/status
-  - Fields: status (str)
-  - Description: Quickly updates only the status of a task.
-- POST /:task_id/share
-  - Fields: user_ids (list)
-  - Description: Shares a task with other users (Collaboration).
-- DELETE /:task_id/members/:user_id
-  - Description: Removes a collaborator from a task.
-- GET /:task_id/members
-  - Description: Lists all members/collaborators of a task.
-- GET /:task_id/activity
-  - Description: Returns the activity logs (history) for a specific task.
-- GET /stream (SSE)
-  - Description: Server-Sent Events stream for real-time task updates.
+## Authentication Endpoints (Base: /api/auth)
 
-## Messages (Base: /api/messages)
-- GET /conversations
-  - Description: Retrieves a list of all active conversations for the user.
-- POST /
-  - Fields: receiver_id (uuid), content (str), image_url (opt)
-  - Description: Sends a direct message to another user.
-- GET /conversations/:user_id
-  - Query Params: page, limit
-  - Description: Retrieves paginated message history with a specific user.
-- PUT /:message_id/read
-  - Description: Marks a specific message as read.
+### POST /api/auth/register
+Creates a new user account.
+- **Request Body:**
+  - `username` (string, required): Username for the account
+  - `email` (string, required): Valid email address
+  - `password` (string, required): Password (minimum length enforced)
+- **Response:** 201 Created
+  - Returns `access_token`, `refresh_token`, and `user` object
+- **Errors:** 400 (Validation error), 409 (User already exists)
 
-## Notifications (Base: /api/notifications)
-- GET /
-  - Description: Lists all notifications for the current user.
-- PATCH /:id/read
-  - Description: Marks a notification as read.
-- DELETE /:id
-  - Description: Deletes a specific notification.
-- PUT /preferences
-  - Fields: notification_enabled (bool)
-  - Description: Updates global notification settings for the user.
-- GET /stream (SSE)
-  - Description: Server-Sent Events stream for real-time notification delivery.
+### POST /api/auth/login
+Authenticates user and returns JWT tokens.
+- **Request Body:**
+  - `email` (string, required): User email
+  - `password` (string, required): User password
+- **Response:** 200 OK
+  - Returns `access_token`, `refresh_token`, and `user` object
+- **Errors:** 401 (Invalid credentials)
 
-## Admin Management (Base: /api/admin)
-- GET /users
-  - Query Params: page, limit
-  - Description: (Admin only) Lists all registered users.
-- GET /users/:user_id
-  - Description: (Admin only) Retrieves detailed profile for any user.
-- PUT /users/:user_id
-  - Fields: username, email, bio, theme, avatar_url, is_admin, is_active
-  - Description: (Admin only) Manually updates user account details.
-- DELETE /users/:user_id
-  - Description: (Admin only) Deletes a user account.
-- PATCH /users/:user_id/status
-  - Fields: is_active (bool)
-  - Description: (Admin only) Activates or deactivates a user account.
-- PATCH /users/:user_id/admin
-  - Fields: is_admin (bool)
-  - Description: (Admin only) Promotes or demotes a user to/from Admin.
-- GET /tasks
-  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, user_id, page, limit
-  - Description: (Admin only) Searches and lists all tasks in the entire system.
-- GET /users/:user_id/tasks
-  - Query Params: status, statuses[], priority, priorities[], search, created_from, created_to, due_from, due_to, page, limit
-  - Description: (Admin only) Lists all tasks belonging to a specific user.
-- DELETE /tasks/:task_id
-  - Description: (Admin only) Force deletes any task in the system.
+### POST /api/auth/refresh
+Issues a new access token using a valid refresh token.
+- **Request Body:**
+  - `refresh_token` (string, required): Valid refresh token
+- **Response:** 200 OK
+  - Returns new `access_token`
+- **Errors:** 401 (Invalid or expired token)
 
-## WebSocket Real-time (at /ws)
-Requires authentication via Bearer token in sub-protocol or headers.
-Supports:
-- Real-time messages (type: chat_message)
-- Typing indicators (type: typing_indicator)
-- User status updates (type: user_status)
-- Heartbeats (type: ping/pong)
-- Error reporting (type: error)
+### POST /api/auth/logout
+Revokes the refresh token and logs out the user.
+- **Request Body:**
+  - `refresh_token` (string, required): Refresh token to revoke
+- **Response:** 200 OK
+- **Errors:** 401 (Unauthorized)
+
+### GET /api/auth/google
+Initiates Google OAuth2 login flow.
+- **Response:** 302 Redirect to Google OAuth consent page
+- **Note:** Public endpoint, no authentication required
+
+### GET /api/auth/google/callback
+Handles the callback from Google OAuth2.
+- **Query Parameters:**
+  - `code` (string, required): Authorization code from Google
+- **Response:** 200 OK or redirect with tokens
+- **Note:** Public endpoint, no authentication required
+
+---
+
+## User Profile Endpoints (Base: /api/users)
+All endpoints require authentication.
+
+### GET /api/users/me
+Returns the currently authenticated user's profile.
+- **Response:** 200 OK
+  - Returns user object with `id`, `username`, `email`, `role`, `avatar_url`, `bio`, `theme`, etc.
+- **Errors:** 401 (Unauthorized)
+
+### PUT /api/users/me
+Updates the current user's profile information.
+- **Request Body:**
+  - `username` (string, optional): New username
+  - `bio` (string, optional): User biography
+  - `theme` (string, optional): UI theme preference
+  - `avatar_url` (string, optional): Profile picture URL
+- **Response:** 200 OK
+  - Returns updated user object
+- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+### GET /api/users/me/stats
+Returns task statistics for the current user.
+- **Response:** 200 OK
+  - Returns object with `total`, `pending`, `in_progress`, `completed`, `overdue`, etc.
+- **Errors:** 401 (Unauthorized)
+
+---
+
+## Task Management Endpoints (Base: /api/tasks)
+All endpoints require authentication.
+
+### GET /api/tasks
+Retrieves a paginated list of tasks (including shared ones).
+- **Query Parameters:**
+  - `status` (string, optional): Filter by status (pending, in_progress, completed, cancelled)
+  - `statuses[]` (array, optional): Filter by multiple statuses
+  - `priority` (string, optional): Filter by priority (low, medium, high, urgent)
+  - `priorities[]` (array, optional): Filter by multiple priorities
+  - `search` (string, optional): Search in title and description
+  - `created_from` (datetime, optional): Filter tasks created after this date
+  - `created_to` (datetime, optional): Filter tasks created before this date
+  - `due_from` (datetime, optional): Filter tasks due after this date
+  - `due_to` (datetime, optional): Filter tasks due before this date
+  - `sort_by` (string, optional): Sort field (created_at, due_date, priority, status, title)
+  - `sort_order` (string, optional): Sort order (asc, desc)
+  - `page` (integer, optional): Page number (default: 1)
+  - `limit` (integer, optional): Items per page (default: 20)
+- **Response:** 200 OK
+  - Returns paginated response with `data`, `total`, `page`, `limit`, `total_pages`
+- **Errors:** 401 (Unauthorized)
+
+### POST /api/tasks
+Creates a new task.
+- **Request Body:**
+  - `title` (string, required): Task title (1-500 characters)
+  - `description` (string, optional): Task description
+  - `priority` (string, optional): Priority level (low, medium, high, urgent)
+  - `due_date` (datetime, optional): Due date for the task
+  - `reminder_time` (datetime, optional): Reminder notification time
+- **Response:** 201 Created
+  - Returns created task object
+- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+### GET /api/tasks/:id
+Retrieves detailed information about a specific task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Response:** 200 OK
+  - Returns task object with full details
+- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+### PUT /api/tasks/:id
+Updates an existing task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Request Body:**
+  - `title` (string, optional): Task title (1-500 characters)
+  - `description` (string, optional): Task description
+  - `status` (string, optional): Task status
+  - `priority` (string, optional): Priority level
+  - `due_date` (datetime, optional): Due date
+  - `reminder_time` (datetime, optional): Reminder time
+- **Response:** 200 OK
+  - Returns updated task object
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not task owner), 404 (Task not found)
+
+### DELETE /api/tasks/:id
+Deletes a task (only allowed for task owner).
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Response:** 204 No Content
+- **Errors:** 401 (Unauthorized), 403 (Not task owner), 404 (Task not found)
+
+### PATCH /api/tasks/:id/status
+Quickly updates only the status of a task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Request Body:**
+  - `status` (string, required): New status (pending, in_progress, completed, cancelled)
+- **Response:** 200 OK
+  - Returns updated task object
+- **Errors:** 400 (Invalid status), 401 (Unauthorized), 404 (Task not found)
+
+### POST /api/tasks/:id/share
+Shares a task with other users (Collaboration feature).
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Request Body:**
+  - `user_ids` (array of uuid, required): List of user IDs to share the task with
+- **Response:** 200 OK
+  - Returns task object with updated members
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 404 (Task not found)
+
+### GET /api/tasks/:id/members
+Lists all members/collaborators of a task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Response:** 200 OK
+  - Returns array of user objects
+- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+### DELETE /api/tasks/:id/members/:user_id
+Removes a collaborator from a task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+  - `user_id` (uuid, required): User ID to remove
+- **Response:** 204 No Content
+- **Errors:** 401 (Unauthorized), 403 (Not task owner), 404 (Task or member not found)
+
+### GET /api/tasks/:id/activity
+Returns the activity logs (history) for a specific task.
+- **Path Parameters:**
+  - `id` (uuid, required): Task ID
+- **Response:** 200 OK
+  - Returns array of activity log entries
+- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+### GET /api/tasks/stream
+Server-Sent Events (SSE) stream for real-time task updates.
+- **Response:** 200 OK (SSE stream)
+  - Streams task update events as they occur
+- **Headers:** Requires `Accept: text/event-stream`
+- **Errors:** 401 (Unauthorized)
+
+---
+
+## Messaging Endpoints (Base: /api/messages)
+All endpoints require authentication.
+
+### GET /api/messages/conversations
+Retrieves a list of all active conversations for the authenticated user.
+- **Response:** 200 OK
+  - Returns array of `ConversationUser` objects containing:
+    - `user_id`: Other user's ID
+    - `username`: Other user's username
+    - `avatar_url`: Other user's avatar URL
+    - `last_message`: Last message content
+    - `last_message_time`: Timestamp of last message
+    - `unread_count`: Number of unread messages
+- **Errors:** 401 (Unauthorized)
+
+### POST /api/messages
+Sends a direct message to another user.
+- **Request Body:**
+  - `receiver_id` (uuid, required): ID of the message recipient
+  - `content` (string, required): Message content (minimum 1 character)
+  - `image_url` (string, optional): URL of attached image
+- **Response:** 201 Created
+  - Returns `MessageResponse` object with message details
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 404 (Receiver not found)
+
+### GET /api/messages/:user_id
+Retrieves paginated message history with a specific user.
+- **Path Parameters:**
+  - `user_id` (uuid, required): Other user's ID to get conversation with
+- **Query Parameters:**
+  - `page` (integer, optional): Page number (default: 1)
+  - `limit` (integer, optional): Items per page (default: 50)
+- **Response:** 200 OK
+  - Returns paginated response (`PaginatedResponse<MessageResponse>`) with:
+    - `data`: Array of messages
+    - `total`: Total number of messages
+    - `page`: Current page number
+    - `limit`: Items per page
+    - `total_pages`: Total number of pages
+  - Automatically marks messages from the other user as read
+- **Errors:** 401 (Unauthorized), 404 (User not found)
+
+### PATCH /api/messages/:id/read
+Marks a specific message as read.
+- **Path Parameters:**
+  - `id` (uuid, required): Message ID to mark as read
+- **Response:** 200 OK
+- **Errors:** 401 (Unauthorized), 404 (Message not found)
+
+---
+
+## Notification Endpoints (Base: /api/notifications)
+All endpoints require authentication.
+
+### GET /api/notifications
+Lists all notifications for the current user.
+- **Response:** 200 OK
+  - Returns array of notification objects
+- **Errors:** 401 (Unauthorized)
+
+### PATCH /api/notifications/:id/read
+Marks a notification as read.
+- **Path Parameters:**
+  - `id` (uuid, required): Notification ID
+- **Response:** 200 OK
+- **Errors:** 401 (Unauthorized), 404 (Notification not found)
+
+### DELETE /api/notifications/:id
+Deletes a specific notification.
+- **Path Parameters:**
+  - `id` (uuid, required): Notification ID
+- **Response:** 204 No Content
+- **Errors:** 401 (Unauthorized), 404 (Notification not found)
+
+### PUT /api/notifications/preferences
+Updates global notification settings for the user.
+- **Request Body:**
+  - `notification_enabled` (boolean, optional): Enable/disable notifications
+- **Response:** 200 OK
+  - Returns updated preferences
+- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+### GET /api/notifications/stream
+Server-Sent Events (SSE) stream for real-time notification delivery.
+- **Response:** 200 OK (SSE stream)
+  - Streams notification events as they occur
+- **Headers:** Requires `Accept: text/event-stream`
+- **Errors:** 401 (Unauthorized)
+
+---
+
+## Admin Management Endpoints (Base: /api/admin)
+All endpoints require admin authentication.
+
+### GET /api/admin/users
+Lists all registered users (paginated).
+- **Query Parameters:**
+  - `page` (integer, optional): Page number (default: 1)
+  - `limit` (integer, optional): Items per page (default: 20)
+- **Response:** 200 OK
+  - Returns paginated list of users
+- **Errors:** 401 (Unauthorized), 403 (Not an admin)
+
+### GET /api/admin/users/:user_id
+Retrieves detailed profile for any user.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Response:** 200 OK
+  - Returns user object with full details
+- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### PUT /api/admin/users/:user_id
+Manually updates user account details.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Request Body:**
+  - `username` (string, optional): Username
+  - `email` (string, optional): Email address
+  - `bio` (string, optional): Biography
+  - `theme` (string, optional): Theme preference
+  - `avatar_url` (string, optional): Avatar URL
+  - `is_admin` (boolean, optional): Admin status
+  - `is_active` (boolean, optional): Account active status
+- **Response:** 200 OK
+  - Returns updated user object
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### DELETE /api/admin/users/:user_id
+Deletes a user account.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Response:** 204 No Content
+- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### PATCH /api/admin/users/:user_id/status
+Activates or deactivates a user account.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Request Body:**
+  - `is_active` (boolean, required): Account active status
+- **Response:** 200 OK
+  - Returns updated user object
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### PATCH /api/admin/users/:user_id/admin
+Promotes or demotes a user to/from Admin role.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Request Body:**
+  - `is_admin` (boolean, required): Admin status
+- **Response:** 200 OK
+  - Returns updated user object
+- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### GET /api/admin/tasks
+Searches and lists all tasks in the entire system (admin view).
+- **Query Parameters:**
+  - `status` (string, optional): Filter by status
+  - `statuses[]` (array, optional): Filter by multiple statuses
+  - `priority` (string, optional): Filter by priority
+  - `priorities[]` (array, optional): Filter by multiple priorities
+  - `search` (string, optional): Search in title and description
+  - `created_from` (datetime, optional): Filter tasks created after this date
+  - `created_to` (datetime, optional): Filter tasks created before this date
+  - `due_from` (datetime, optional): Filter tasks due after this date
+  - `due_to` (datetime, optional): Filter tasks due before this date
+  - `user_id` (uuid, optional): Filter by task owner
+  - `page` (integer, optional): Page number (default: 1)
+  - `limit` (integer, optional): Items per page (default: 20)
+- **Response:** 200 OK
+  - Returns paginated list of all tasks
+- **Errors:** 401 (Unauthorized), 403 (Not an admin)
+
+### GET /api/admin/users/:user_id/tasks
+Lists all tasks belonging to a specific user.
+- **Path Parameters:**
+  - `user_id` (uuid, required): User ID
+- **Query Parameters:**
+  - `status` (string, optional): Filter by status
+  - `statuses[]` (array, optional): Filter by multiple statuses
+  - `priority` (string, optional): Filter by priority
+  - `priorities[]` (array, optional): Filter by multiple priorities
+  - `search` (string, optional): Search in title and description
+  - `created_from` (datetime, optional): Filter tasks created after this date
+  - `created_to` (datetime, optional): Filter tasks created before this date
+  - `due_from` (datetime, optional): Filter tasks due after this date
+  - `due_to` (datetime, optional): Filter tasks due before this date
+  - `page` (integer, optional): Page number (default: 1)
+  - `limit` (integer, optional): Items per page (default: 20)
+- **Response:** 200 OK
+  - Returns paginated list of user's tasks
+- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+
+### DELETE /api/admin/tasks/:task_id
+Force deletes any task in the system (admin override).
+- **Path Parameters:**
+  - `task_id` (uuid, required): Task ID
+- **Response:** 204 No Content
+- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (Task not found)
+
+---
+
+## WebSocket Real-time Communication
+**Endpoint:** `/ws` (WebSocket connection, not under `/api`)
+
+### Authentication
+Requires authentication via Bearer token:
+- As a query parameter: `?token=<jwt_token>`
+- Or in the sub-protocol header
+
+### Message Types
+The WebSocket supports the following message types:
+
+1. **Chat Messages** (`chat_message`)
+   - Real-time message delivery
+   - Contains: `id`, `sender_id`, `receiver_id`, `content`, `image_url`, `created_at`
+
+2. **Typing Indicators** (`typing_indicator`)
+   - Shows when a user is typing
+   - Contains: `user_id`, `is_typing`
+
+3. **User Status Updates** (`user_status`)
+   - Online/offline status changes
+   - Contains: `user_id`, `status` (online/offline)
+
+4. **Heartbeats** (`ping`/`pong`)
+   - Connection keep-alive mechanism
+   - Server sends `ping`, client responds with `pong`
+
+5. **Error Messages** (`error`)
+   - Error notifications
+   - Contains: `message`, `code`
+
+### Client Message Format
+```json
+{
+  "type": "chat_message" | "typing_indicator" | "user_status",
+  "payload": { ... }
+}
+```
+
+---
+
+## Response Formats
+
+### Paginated Response
+```json
+{
+  "data": [...],
+  "total": 100,
+  "page": 1,
+  "limit": 20,
+  "total_pages": 5
+}
+```
+
+### Error Response
+```json
+{
+  "error": "Error message description",
+  "code": "ERROR_CODE"
+}
+```
+
+### Authentication Response
+```json
+{
+  "access_token": "jwt_token_string",
+  "refresh_token": "refresh_token_string",
+  "user": {
+    "id": "uuid",
+    "username": "string",
+    "email": "string",
+    "role": "user" | "admin",
+    ...
+  }
+}
+```
+
+---
+
+## Status Codes
+- `200 OK`: Successful request
+- `201 Created`: Resource created successfully
+- `204 No Content`: Successful deletion
+- `400 Bad Request`: Validation error or invalid input
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Insufficient permissions (e.g., not an admin)
+- `404 Not Found`: Resource not found
+- `409 Conflict`: Resource conflict (e.g., user already exists)
+- `500 Internal Server Error`: Server error
+
+---
+
+## Interactive API Documentation
+Visit `/swagger-ui` on the deployed server for interactive API documentation powered by Swagger UI.
+
+---
+
+## CORS
+The API supports CORS for the following origins:
+- `http://localhost:3000`
+- `http://127.0.0.1:3000`
+- `http://localhost:8080`
+- Production frontend domains (configured in environment)
+
+All endpoints support the following HTTP methods:
+- GET, POST, PUT, PATCH, DELETE, OPTIONS
