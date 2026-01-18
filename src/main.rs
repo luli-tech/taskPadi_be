@@ -2,6 +2,7 @@ mod admin;
 mod auth;
 mod db;
 mod error;
+mod group;
 mod message;
 mod middleware;
 mod notification;

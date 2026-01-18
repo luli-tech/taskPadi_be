@@ -136,7 +136,8 @@ async fn process_client_message(
 
             // Use MessageService for consistent behavior
             state.message_service.send_message(user_id, crate::message::message_dto::SendMessageRequest {
-                receiver_id,
+                receiver_id: Some(receiver_id),
+                group_id: None,
                 content,
                 image_url,
             }).await?;

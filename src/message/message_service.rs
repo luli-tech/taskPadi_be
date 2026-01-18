@@ -47,18 +47,17 @@ impl MessageService {
             .create(sender_id, payload.receiver_id, payload.group_id, &payload.content, payload.image_url.as_deref())
             .await?;
 
-        // Broadcast via WebSocket
-        let ws_message = WsMessage::ChatMessage(ChatMessagePayload {
-            id: message.id,
-            sender_id,
-            receiver_id: payload.receiver_id,
-            content: message.content.clone(),
-            image_url: message.image_url.clone(),
-            created_at: message.created_at.to_rfc3339(),
-        });
-
         if let Some(receiver_id) = payload.receiver_id {
             // 1-on-1 message
+            let ws_message = WsMessage::ChatMessage(ChatMessagePayload {
+                id: message.id,
+                sender_id,
+                receiver_id,
+                content: message.content.clone(),
+                image_url: message.image_url.clone(),
+                created_at: message.created_at.to_rfc3339(),
+            });
+
             self.ws_manager.send_to_user(&receiver_id, ws_message.clone());
             self.ws_manager.send_to_user(&sender_id, ws_message);
 
@@ -74,8 +73,19 @@ impl MessageService {
                 .await;
         } else if let Some(group_id) = payload.group_id {
             // Group message - send to all group members
-            let members_data = self.group_repo.get_group_members(group_id).await?;
+            let members_data: Vec<(crate::group::group_models::GroupMember, String, Option<String>)> = 
+                self.group_repo.get_group_members(group_id).await?;
             let member_ids: Vec<Uuid> = members_data.iter().map(|(member, _, _)| member.user_id).collect();
+            
+            // For group messages, use group_id as receiver_id for WebSocket compatibility
+            let ws_message = WsMessage::ChatMessage(ChatMessagePayload {
+                id: message.id,
+                sender_id,
+                receiver_id: group_id, // Use group_id as receiver_id for WebSocket
+                content: message.content.clone(),
+                image_url: message.image_url.clone(),
+                created_at: message.created_at.to_rfc3339(),
+            });
             
             self.ws_manager.send_to_users(&member_ids, ws_message.clone());
             // Also send to sender for confirmation

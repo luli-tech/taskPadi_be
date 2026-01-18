@@ -14,7 +14,7 @@ use crate::{
     state::AppState,
     task::task_dto::PaginatedResponse,
     message::{
-        message_dto::{ConversationUser, SendMessageRequest},
+        message_dto::SendMessageRequest,
         message_models::MessageResponse,
     },
 };

@@ -754,7 +754,7 @@ Retrieves a list of all active conversations for the authenticated user.
 ---
 
 ### POST /api/messages
-Sends a direct message to another user.
+Sends a message to another user (1-on-1) or to a group. Either `receiver_id` (for 1-on-1) or `group_id` (for group message) must be provided, but not both.
 
 **Path Parameters:** None
 
@@ -763,23 +763,31 @@ Sends a direct message to another user.
 **Request Body (JSON):**
 ```json
 {
-  "receiver_id": "uuid (required)",
+  "receiver_id": "uuid (optional, for 1-on-1 messages)",
+  "group_id": "uuid (optional, for group messages)",
   "content": "string (required, min: 1 character)",
   "image_url": "string (optional)"
 }
 ```
 
 **Fields:**
-- `receiver_id` (uuid, required): ID of the message recipient
+- `receiver_id` (uuid, optional): ID of the user to send a 1-on-1 message to. Required if `group_id` is not provided.
+- `group_id` (uuid, optional): ID of the group to send a group message to. Required if `receiver_id` is not provided.
 - `content` (string, required): Message content (minimum 1 character)
 - `image_url` (string, optional): URL of attached image
+
+**Note:** 
+- For 1-on-1 messages: Provide `receiver_id` and leave `group_id` as `null`
+- For group messages: Provide `group_id` and leave `receiver_id` as `null`
+- You must be a member of the group to send messages to it
 
 **Response:** `201 Created`
 ```json
 {
   "id": "uuid",
   "sender_id": "uuid",
-  "receiver_id": "uuid",
+  "receiver_id": "uuid | null",
+  "group_id": "uuid | null",
   "content": "string",
   "image_url": "string | null",
   "is_read": false,
@@ -788,14 +796,97 @@ Sends a direct message to another user.
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Validation error (empty content, invalid UUID)
+- `400 Bad Request`: 
+  - Validation error (e.g., empty content)
+  - Both `receiver_id` and `group_id` provided
+  - Neither `receiver_id` nor `group_id` provided
 - `401 Unauthorized`: Missing or invalid authentication token
-- `404 Not Found`: Receiver not found
+- `403 Forbidden`: Not a member of the group
+- `404 Not Found`: Receiver or group not found
 
 ---
 
 ### GET /api/messages/:user_id
-Retrieves paginated message history with a specific user.
+Retrieves paginated message history with a specific user (1-on-1 conversation only).
+
+**Path Parameters:**
+- `user_id` (uuid, required): Other user's ID to get conversation with
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1, minimum: 1)
+- `limit` (integer, optional): Items per page (default: 50, maximum: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "sender_id": "uuid",
+      "receiver_id": "uuid",
+      "group_id": null,
+      "content": "string",
+      "image_url": "string | null",
+      "is_read": boolean,
+      "created_at": "datetime"
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: User not found
+
+---
+
+### GET /api/messages/groups/:group_id
+Retrieves paginated message history for a specific group. Only group members can access group messages.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID to get messages from
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1, minimum: 1)
+- `limit` (integer, optional): Items per page (default: 50, maximum: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "sender_id": "uuid",
+      "receiver_id": null,
+      "group_id": "uuid",
+      "content": "string",
+      "image_url": "string | null",
+      "is_read": boolean,
+      "created_at": "datetime"
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Note:** Messages are automatically marked as read when retrieved.
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not a member of the group
+- `404 Not Found`: Group not found
+
+---
+
+### GET /api/messages/:user_id
+Retrieves paginated message history with a specific user (1-on-1 conversation only).
 
 **Path Parameters:**
 - `user_id` (uuid, required): Other user's ID to get conversation with
@@ -848,6 +939,273 @@ Marks a specific message as read.
 **Error Responses:**
 - `401 Unauthorized`: Missing or invalid authentication token
 - `404 Not Found`: Message not found
+
+---
+
+## Group Chat Endpoints (Base: /api/groups)
+**All endpoints require authentication.**
+Groups are private - only members can access them. Only the group creator can manage members and update/delete the group.
+
+### POST /api/groups
+Creates a new group. The authenticated user automatically becomes the group creator and first member.
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "name": "string (required, min: 1, max: 255 characters)",
+  "description": "string (optional, max: 1000 characters)",
+  "avatar_url": "string (optional)"
+}
+```
+
+**Fields:**
+- `name` (string, required): Group name (1-255 characters)
+- `description` (string, optional): Group description (maximum 1000 characters)
+- `avatar_url` (string, optional): URL of the group avatar image
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "description": "string | null",
+  "creator_id": "uuid",
+  "avatar_url": "string | null",
+  "member_count": integer,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (e.g., name too long)
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
+
+### GET /api/groups
+Retrieves a list of all groups the authenticated user is a member of.
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "name": "string",
+    "description": "string | null",
+    "creator_id": "uuid",
+    "avatar_url": "string | null",
+    "member_count": integer,
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+]
+```
+
+**Note:** 
+- Only returns groups where the authenticated user is a member
+- Results are sorted by `updated_at` in descending order (most recently active first)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
+
+### GET /api/groups/:group_id
+Retrieves detailed information about a specific group. Only group members can access.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "description": "string | null",
+  "creator_id": "uuid",
+  "avatar_url": "string | null",
+  "member_count": integer,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not a member of the group
+- `404 Not Found`: Group not found
+
+---
+
+### PUT /api/groups/:group_id
+Updates group information (name, description, avatar). Only the group creator can update the group.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "name": "string (optional, min: 1, max: 255 characters)",
+  "description": "string (optional, max: 1000 characters)",
+  "avatar_url": "string (optional)"
+}
+```
+
+**Fields:**
+- `name` (string, optional): New group name (1-255 characters)
+- `description` (string, optional): New group description (maximum 1000 characters)
+- `avatar_url` (string, optional): New group avatar URL
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "name": "string",
+  "description": "string | null",
+  "creator_id": "uuid",
+  "avatar_url": "string | null",
+  "member_count": integer,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the group creator can update the group
+- `404 Not Found`: Group not found
+
+---
+
+### DELETE /api/groups/:group_id
+Deletes a group and all associated messages. Only the group creator can delete the group.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Warning:** This action is irreversible. All group messages will be permanently deleted.
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the group creator can delete the group
+- `404 Not Found`: Group not found
+
+---
+
+### GET /api/groups/:group_id/members
+Retrieves a list of all members in a group. Only group members can view the member list.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "group_id": "uuid",
+    "user_id": "uuid",
+    "username": "string",
+    "avatar_url": "string | null",
+    "role": "creator | member",
+    "joined_at": "datetime"
+  }
+]
+```
+
+**Fields:**
+- `role`: Either `"creator"` (group creator) or `"member"` (regular member)
+- Results are sorted by `joined_at` in ascending order (earliest members first)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not a member of the group
+- `404 Not Found`: Group not found
+
+---
+
+### POST /api/groups/:group_id/members
+Adds a user to the group. Only the group creator can add members.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "user_id": "uuid (required)"
+}
+```
+
+**Fields:**
+- `user_id` (uuid, required): ID of the user to add to the group
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "group_id": "uuid",
+  "user_id": "uuid",
+  "username": "string",
+  "avatar_url": "string | null",
+  "role": "member",
+  "joined_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: 
+  - User is already a member of the group
+  - Validation error (invalid user_id)
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the group creator can add members
+- `404 Not Found`: Group or user not found
+
+---
+
+### DELETE /api/groups/:group_id/members/:user_id
+Removes a user from the group. Only the group creator can remove members. The creator cannot be removed.
+
+**Path Parameters:**
+- `group_id` (uuid, required): Group ID
+- `user_id` (uuid, required): ID of the user to remove from the group
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `400 Bad Request`: Cannot remove the group creator
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the group creator can remove members
+- `404 Not Found`: Group or member not found
 
 ---
 
@@ -1580,3 +1938,27 @@ The OpenAPI specification is available at `/api-docs/openapi.json`.
 - Server-Sent Events (SSE) are used for task and notification streams.
 - WebSocket is used for real-time messaging and typing indicators.
 - Both require authentication via Bearer token.
+
+### Group Chat
+- Groups are private and only accessible to members.
+- Only the group creator can:
+  - Update group information (name, description, avatar)
+  - Delete the group
+  - Add members to the group
+  - Remove members from the group
+- Group messages are sent to all group members via WebSocket.
+- All group members receive notifications when a new message is sent.
+- The group creator cannot be removed from the group.
+- When sending a message, use `group_id` for group messages and `receiver_id` for 1-on-1 messages.
+
+### Group Chat
+- Groups are private and only accessible to members.
+- Only the group creator can:
+  - Update group information (name, description, avatar)
+  - Delete the group
+  - Add members to the group
+  - Remove members from the group
+- Group messages are sent to all group members via WebSocket.
+- All group members receive notifications when a new message is sent.
+- The group creator cannot be removed from the group.
+- When sending a message, use `group_id` for group messages and `receiver_id` for 1-on-1 messages.
