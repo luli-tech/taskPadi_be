@@ -74,7 +74,7 @@ pub async fn send_message(
 /// Get conversation messages with a specific user
 #[utoipa::path(
     get,
-    path = "/api/messages/{user_id}",
+    path = "/api/messages/conversation/{user_id}",
     tag = "messages",
     params(
         ("user_id" = Uuid, Path, description = "Other user ID to get conversation with"),

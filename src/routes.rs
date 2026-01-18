@@ -268,7 +268,7 @@ pub fn create_router(state: AppState) -> Router {
     let message_routes = Router::new()
         .route("/", post(message_handlers::send_message))
         .route("/conversations", get(message_handlers::get_conversations))
-        .route("/:user_id", get(message_handlers::get_conversation))
+        .route("/conversation/:user_id", get(message_handlers::get_conversation))
         .route("/groups/:group_id", get(message_handlers::get_group_messages))
         .route("/:id", put(message_handlers::update_message).delete(message_handlers::delete_message))
         .route("/:id/read", patch(message_handlers::mark_message_read))

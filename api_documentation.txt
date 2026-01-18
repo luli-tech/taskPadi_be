@@ -806,7 +806,7 @@ Sends a message to another user (1-on-1) or to a group. Either `receiver_id` (fo
 
 ---
 
-### GET /api/messages/:user_id
+### GET /api/messages/conversation/:user_id
 Retrieves paginated message history with a specific user (1-on-1 conversation only).
 
 **Path Parameters:**
@@ -885,7 +885,7 @@ Retrieves paginated message history for a specific group. Only group members can
 
 ---
 
-### GET /api/messages/:user_id
+### GET /api/messages/conversation/:user_id
 Retrieves paginated message history with a specific user (1-on-1 conversation only).
 
 **Path Parameters:**

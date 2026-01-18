@@ -135,6 +135,7 @@ impl NotificationHelper {
     }
 
     /// Send notification when a task reminder is due
+    #[allow(dead_code)]
     pub async fn notify_task_reminder(
         &self,
         user_id: Uuid,
@@ -147,6 +148,7 @@ impl NotificationHelper {
     }
 
     /// Generic notification creator
+    #[allow(dead_code)]
     pub async fn create_notification(
         &self,
         user_id: Uuid,
