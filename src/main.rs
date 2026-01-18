@@ -106,6 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         refresh_token_repository.clone(),
         config.jwt_secret.clone(),
     );
+    let group_service = crate::group::group_service::GroupService::new(group_repository.clone());
     let message_service = crate::message::message_service::MessageService::new(
         message_repository.clone(),
         ws_connections.clone(),
@@ -113,7 +114,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         group_service.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
-    let group_service = crate::group::group_service::GroupService::new(group_repository.clone());
 
     // Create application state
     let state = AppState {
