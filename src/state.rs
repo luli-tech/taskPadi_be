@@ -22,12 +22,14 @@ use crate::{
         group_repository::GroupRepository,
         group_service::GroupService,
     },
+    notification::NotificationHelper,
 };
 
 
 
 #[derive(Clone)]
 pub struct AppState {
+    #[allow(dead_code)]
     pub db: DbPool,
     pub config: Arc<Config>,
     pub oauth_client: BasicClient,
@@ -37,21 +39,27 @@ pub struct AppState {
     pub user_repository: UserRepository,
     pub task_repository: TaskRepository,
     pub notification_repository: NotificationRepository,
+    #[allow(dead_code)]
     pub message_repository: MessageRepository,
+    #[allow(dead_code)]
     pub refresh_token_repository: RefreshTokenRepository,
     pub user_service: UserService,
     pub task_service: TaskService,
     pub auth_service: AuthService,
     pub message_service: MessageService,
+    #[allow(dead_code)]
     pub admin_repository: AdminRepository,
     pub admin_service: AdminService,
+    #[allow(dead_code)]
     pub group_repository: GroupRepository,
     pub group_service: GroupService,
+    pub notification_helper: NotificationHelper,
 }
 
 #[derive(Clone)]
 pub struct Config {
     pub jwt_secret: String,
+    #[allow(dead_code)]
     pub jwt_expiration_hours: i64,
     pub google_client_id: String,
     pub google_client_secret: String,

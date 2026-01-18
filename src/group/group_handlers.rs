@@ -198,6 +198,16 @@ pub async fn add_group_member(
         .add_member(group_id, user_id, payload.user_id)
         .await?;
 
+    // Get group name and adder username for notification
+    let group = state.group_service.get_group(group_id, user_id).await?;
+    let adder = state.user_repository.find_by_id(user_id).await?
+        .ok_or_else(|| crate::error::AppError::NotFound("User not found".to_string()))?;
+
+    // Send notification to added user
+    let _ = state.notification_helper
+        .notify_group_member_added(payload.user_id, &group.name, &adder.username)
+        .await;
+
     // Get member details
     let members = state.group_service.list_group_members(group_id, user_id).await?;
     let member_response = members
@@ -233,9 +243,19 @@ pub async fn remove_group_member(
     AuthUser(user_id): AuthUser,
     Path((group_id, member_user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse> {
+    // Get group name and remover username before removing
+    let group = state.group_service.get_group(group_id, user_id).await?;
+    let remover = state.user_repository.find_by_id(user_id).await?
+        .ok_or_else(|| crate::error::AppError::NotFound("User not found".to_string()))?;
+
     state.group_service
         .remove_member(group_id, user_id, member_user_id)
         .await?;
+
+    // Send notification to removed user
+    let _ = state.notification_helper
+        .notify_group_member_removed(member_user_id, &group.name, &remover.username)
+        .await;
 
     Ok(StatusCode::NO_CONTENT)
 }

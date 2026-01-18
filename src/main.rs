@@ -99,7 +99,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         user_repository.clone(),
         task_repository.clone(),
     );
-    let task_service = crate::task::task_service::TaskService::new(task_repository.clone());
+    let notification_helper = crate::notification::notification_helper::NotificationHelper::new(notification_repository.clone());
+    let task_service = crate::task::task_service::TaskService::new(task_repository.clone(), notification_helper.clone());
     let auth_service = crate::auth::auth_service::AuthService::new(
         db.clone(),
         user_repository.clone(),
@@ -112,6 +113,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         ws_connections.clone(),
         notification_repository.clone(),
         group_service.clone(),
+        notification_helper.clone(),
+        user_repository.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
 
@@ -136,6 +139,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         admin_service,
         group_repository,
         group_service,
+        notification_helper,
     };
 
     // Start notification service

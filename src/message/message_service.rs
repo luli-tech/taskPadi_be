@@ -6,6 +6,7 @@ use crate::websocket::ConnectionManager;
 use crate::notification::notification_repository::NotificationRepository;
 use crate::websocket::types::{WsMessage, ChatMessagePayload};
 use crate::group::group_service::GroupService;
+use crate::notification::NotificationHelper;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -14,6 +15,8 @@ pub struct MessageService {
     ws_manager: ConnectionManager,
     notification_repo: NotificationRepository,
     group_service: GroupService,
+    notification_helper: NotificationHelper,
+    user_repo: crate::user::user_repository::UserRepository,
 }
 
 impl MessageService {
@@ -22,12 +25,16 @@ impl MessageService {
         ws_manager: ConnectionManager,
         notification_repo: NotificationRepository,
         group_service: GroupService,
+        notification_helper: NotificationHelper,
+        user_repo: crate::user::user_repository::UserRepository,
     ) -> Self {
         Self {
             repo,
             ws_manager,
             notification_repo,
             group_service,
+            notification_helper,
+            user_repo,
         }
     }
 
@@ -62,16 +69,18 @@ impl MessageService {
             self.ws_manager.send_to_user(&receiver_id, ws_message.clone());
             self.ws_manager.send_to_user(&sender_id, ws_message);
 
-            // Create notification for receiver
-            let notification_text = if message.image_url.is_some() {
-                "New message with image".to_string()
-            } else {
-                format!("New message: {}", &message.content)
-            };
-
-            let _ = self.notification_repo
-                .create(receiver_id, None, &notification_text)
-                .await;
+            // Get sender username for notification
+            if let Ok(Some(sender)) = self.user_repo.find_by_id(sender_id).await {
+                let message_preview = if message.content.len() > 50 {
+                    &message.content[..50]
+                } else {
+                    &message.content
+                };
+                
+                let _ = self.notification_helper
+                    .notify_message_received(receiver_id, &sender.username, message_preview)
+                    .await;
+            }
         } else if let Some(group_id) = payload.group_id {
             // Group message - send to all group members
             let members = self.group_service.list_group_members(group_id, sender_id).await?;
@@ -91,18 +100,23 @@ impl MessageService {
             // Also send to sender for confirmation
             self.ws_manager.send_to_user(&sender_id, ws_message);
 
-            // Create notifications for all members except sender
-            let notification_text = if message.image_url.is_some() {
-                "New group message with image".to_string()
-            } else {
-                format!("New group message: {}", &message.content)
-            };
-
-            for member_id in member_ids {
-                if member_id != sender_id {
-                    let _ = self.notification_repo
-                        .create(member_id, None, &notification_text)
-                        .await;
+            // Get sender username and group name for notifications
+            let sender_result = self.user_repo.find_by_id(sender_id).await;
+            let group_result = self.group_service.get_group(group_id, sender_id).await;
+            
+            if let (Ok(Some(sender)), Ok(group)) = (sender_result, group_result) {
+                let message_preview = if message.content.len() > 50 {
+                    &message.content[..50]
+                } else {
+                    &message.content
+                };
+                
+                for member_id in member_ids {
+                    if member_id != sender_id {
+                        let _ = self.notification_helper
+                            .notify_group_message_received(member_id, &group.name, &sender.username, message_preview)
+                            .await;
+                    }
                 }
             }
         }
@@ -121,6 +135,7 @@ impl MessageService {
         Ok((messages, total))
     }
 
+    #[allow(dead_code)]
     pub async fn get_group_messages(
         &self,
         group_id: Uuid,
@@ -138,6 +153,24 @@ impl MessageService {
         self.repo.mark_group_messages_as_read(user_id, group_id).await
     }
 
+    pub async fn update_message(
+        &self,
+        message_id: Uuid,
+        sender_id: Uuid,
+        content: String,
+        image_url: Option<String>,
+    ) -> Result<Message> {
+        self.repo.update(message_id, sender_id, &content, image_url.as_deref()).await
+    }
+
+    pub async fn delete_message(
+        &self,
+        message_id: Uuid,
+        sender_id: Uuid,
+    ) -> Result<()> {
+        self.repo.delete(message_id, sender_id).await
+    }
+
     pub async fn get_conversation_with_count(
         &self,
         user_id: Uuid,
@@ -150,6 +183,7 @@ impl MessageService {
         Ok((messages, total))
     }
 
+    #[allow(dead_code)]
     pub async fn get_conversation(
         &self,
         user_id: Uuid,

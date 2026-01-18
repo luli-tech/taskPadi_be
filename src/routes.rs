@@ -8,7 +8,7 @@ use crate::{
         auth_handlers,
     },
     message::{
-        message_dto::{ConversationUser, SendMessageRequest},
+        message_dto::{ConversationUser, SendMessageRequest, UpdateMessageRequest},
         message_handlers,
         message_models::{Message, MessageResponse},
     },
@@ -89,6 +89,8 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::message::message_handlers::get_conversations,
         crate::message::message_handlers::get_group_messages,
         crate::message::message_handlers::mark_message_read,
+        crate::message::message_handlers::update_message,
+        crate::message::message_handlers::delete_message,
         crate::group::group_handlers::create_group,
         crate::group::group_handlers::list_groups,
         crate::group::group_handlers::get_group,
@@ -112,6 +114,7 @@ use utoipa_swagger_ui::SwaggerUi;
             UpdateProfileRequest,
             UserStatsResponse,
             SendMessageRequest,
+            UpdateMessageRequest,
             ConversationUser,
             CreateGroupRequest,
             UpdateGroupRequest,
@@ -237,9 +240,8 @@ pub fn create_router(state: AppState) -> Router {
             auth_middleware,
         ));
 
-    // Admin routes
+    // Admin routes - all require admin auth (register is separate, see below)
     let admin_routes = Router::new()
-        .route("/register", post(auth_handlers::register_admin))
         .route("/users", get(admin_handlers::get_all_users))
         .route("/users/:user_id", get(admin_handlers::get_user_by_id)
             .put(admin_handlers::admin_update_user)
@@ -257,12 +259,18 @@ pub fn create_router(state: AppState) -> Router {
             state.clone(),
             auth_middleware,
         ));
+    
+    // Separate public admin registration route (no auth required)
+    // This allows anyone to register as admin, and they immediately have full admin access
+    let admin_register_route = Router::new()
+        .route("/register", post(auth_handlers::register_admin));
 
     let message_routes = Router::new()
         .route("/", post(message_handlers::send_message))
         .route("/conversations", get(message_handlers::get_conversations))
         .route("/:user_id", get(message_handlers::get_conversation))
         .route("/groups/:group_id", get(message_handlers::get_group_messages))
+        .route("/:id", put(message_handlers::update_message).delete(message_handlers::delete_message))
         .route("/:id/read", patch(message_handlers::mark_message_read))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -293,7 +301,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/tasks", task_routes)
         .nest("/notifications", notification_routes)
         .nest("/users", user_routes)
-        .nest("/admin", admin_routes)
+        .nest("/admin", admin_routes.merge(admin_register_route))
         .nest("/messages", message_routes)
         .nest("/groups", group_routes)
         .merge(ws_routes);

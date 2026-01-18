@@ -31,6 +31,7 @@ impl TaskRepository {
         Self { pool }
     }
 
+    #[allow(dead_code)]
     pub async fn find_all(&self, user_id: Uuid, filters: TaskFilters) -> Result<(Vec<Task>, i64)> {
         let mut query = "SELECT * FROM tasks WHERE user_id = $1".to_string();
         let mut count_query = "SELECT COUNT(*) FROM tasks WHERE user_id = $1".to_string();
@@ -177,6 +178,7 @@ impl TaskRepository {
         Ok((tasks, total_count))
     }
 
+    #[allow(dead_code)]
     pub async fn find_by_id(&self, id: Uuid, user_id: Uuid) -> Result<Option<Task>> {
         let task = sqlx::query_as::<_, Task>("SELECT * FROM tasks WHERE id = $1 AND user_id = $2")
             .bind(id)
@@ -575,6 +577,7 @@ impl TaskRepository {
         Ok((tasks, total_count))
     }
 
+    #[allow(dead_code)]
     pub async fn is_task_member(&self, task_id: Uuid, user_id: Uuid) -> Result<bool> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM task_members WHERE task_id = $1 AND user_id = $2"

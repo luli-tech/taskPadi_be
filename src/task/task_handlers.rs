@@ -311,20 +311,27 @@ pub async fn share_task(
 
     state.task_service.share_task(task_id, payload.user_ids.clone(), user_id).await?;
 
-    // Broadcast task shared event via WebSocket
-    for shared_user_id in payload.user_ids {
-        let task = state.task_service.get_task(user_id, task_id).await?;
+    // Get task and sharer username for notifications
+    let task = state.task_service.get_task(user_id, task_id).await?;
+    let sharer = state.user_repository.find_by_id(user_id).await?
+        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+    // Broadcast task shared event via WebSocket and send notifications
+    for shared_user_id in payload.user_ids.clone() {
         let ws_message = crate::websocket::types::WsMessage::TaskShared(
             crate::websocket::types::TaskSharedPayload {
                 task_id,
                 task_title: task.title.clone(),
                 shared_by: user_id,
-                shared_by_username: state.user_repository.find_by_id(user_id).await?
-                    .map(|u| u.username)
-                    .unwrap_or_else(|| "Unknown".to_string()),
+                shared_by_username: sharer.username.clone(),
             }
         );
         state.ws_connections.send_to_user(&shared_user_id, ws_message);
+        
+        // Send notification
+        let _ = state.notification_helper
+            .notify_task_shared(shared_user_id, &task.title, &sharer.username, task_id)
+            .await;
     }
 
     Ok(StatusCode::OK)
@@ -352,18 +359,27 @@ pub async fn remove_task_member(
     Extension(requesting_user): Extension<Uuid>,
     Path((task_id, user_id)): Path<(Uuid, Uuid)>,
 ) -> Result<StatusCode> {
+    // Get task title and remover username before removing
+    let task = state.task_service.get_task(requesting_user, task_id).await?;
+    let remover = state.user_repository.find_by_id(requesting_user).await?
+        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
     state.task_service.remove_collaborator(task_id, user_id, requesting_user).await?;
 
     // Broadcast member removed event via WebSocket
-    let task = state.task_service.get_task(requesting_user, task_id).await?;
     let ws_message = crate::websocket::types::WsMessage::TaskMemberRemoved(
         crate::websocket::types::TaskMemberRemovedPayload {
             task_id,
-            task_title: task.title,
+            task_title: task.title.clone(),
             removed_by: requesting_user,
         }
     );
     state.ws_connections.send_to_user(&user_id, ws_message);
+
+    // Send notification to removed user
+    let _ = state.notification_helper
+        .notify_task_removed(user_id, &task.title, &remover.username)
+        .await;
 
     Ok(StatusCode::NO_CONTENT)
 }

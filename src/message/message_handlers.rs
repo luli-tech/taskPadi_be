@@ -14,7 +14,7 @@ use crate::{
     state::AppState,
     task::task_dto::PaginatedResponse,
     message::{
-        message_dto::SendMessageRequest,
+        message_dto::{SendMessageRequest, UpdateMessageRequest},
         message_models::MessageResponse,
     },
 };
@@ -244,4 +244,71 @@ pub async fn mark_message_read(
         .await?;
 
     Ok(StatusCode::OK)
+}
+
+/// Update a message (sender only)
+#[utoipa::path(
+    put,
+    path = "/api/messages/{id}",
+    tag = "messages",
+    params(
+        ("id" = Uuid, Path, description = "Message ID to update")
+    ),
+    request_body = UpdateMessageRequest,
+    responses(
+        (status = 200, description = "Message updated successfully", body = MessageResponse),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Not the message sender"),
+        (status = 404, description = "Message not found")
+    ),
+    security(
+        ("bearer_auth" = [])
+    )
+)]
+pub async fn update_message(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<Uuid>,
+    Json(payload): Json<UpdateMessageRequest>,
+) -> Result<impl IntoResponse> {
+    payload.validate()?;
+
+    let message = state
+        .message_service
+        .update_message(message_id, user_id, payload.content, payload.image_url)
+        .await?;
+
+    Ok((StatusCode::OK, Json(MessageResponse::from(message))))
+}
+
+/// Delete a message (sender only)
+#[utoipa::path(
+    delete,
+    path = "/api/messages/{id}",
+    tag = "messages",
+    params(
+        ("id" = Uuid, Path, description = "Message ID to delete")
+    ),
+    responses(
+        (status = 204, description = "Message deleted successfully"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Not the message sender"),
+        (status = 404, description = "Message not found")
+    ),
+    security(
+        ("bearer_auth" = [])
+    )
+)]
+pub async fn delete_message(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(message_id): Path<Uuid>,
+) -> Result<impl IntoResponse> {
+    state
+        .message_service
+        .delete_message(message_id, user_id)
+        .await?;
+
+    Ok(StatusCode::NO_CONTENT)
 }

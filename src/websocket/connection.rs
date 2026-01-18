@@ -55,16 +55,19 @@ impl ConnectionManager {
     }
 
     /// Get list of online users
+    #[allow(dead_code)]
     pub fn get_online_users(&self) -> Vec<Uuid> {
         self.connections.iter().map(|entry| *entry.key()).collect()
     }
 
     /// Check if a user is online
+    #[allow(dead_code)]
     pub fn is_user_online(&self, user_id: &Uuid) -> bool {
         self.connections.contains_key(user_id)
     }
 
     /// Get count of online users
+    #[allow(dead_code)]
     pub fn online_count(&self) -> usize {
         self.connections.len()
     }

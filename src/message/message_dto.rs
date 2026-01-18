@@ -13,6 +13,13 @@ pub struct SendMessageRequest {
     pub image_url: Option<String>,
 }
 
+#[derive(Clone, Debug, Deserialize, Validate, ToSchema)]
+pub struct UpdateMessageRequest {
+    #[validate(length(min = 1))]
+    pub content: String,
+    pub image_url: Option<String>,
+}
+
 #[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
 pub struct ConversationUser {
     pub user_id: Uuid,

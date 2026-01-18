@@ -14,6 +14,7 @@ impl RefreshTokenRepository {
         Self { pool }
     }
 
+    #[allow(dead_code)]
     pub async fn create(
         &self,
         user_id: Uuid,
@@ -76,6 +77,7 @@ impl RefreshTokenRepository {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn delete_by_user(&self, user_id: Uuid) -> Result<()> {
         sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
             .bind(user_id)
@@ -85,6 +87,7 @@ impl RefreshTokenRepository {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn delete_expired(&self) -> Result<u64> {
         let result = sqlx::query("DELETE FROM refresh_tokens WHERE expires_at <= NOW()")
             .execute(&self.pool)

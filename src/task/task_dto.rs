@@ -47,6 +47,7 @@ pub struct ShareTaskRequest {
 }
 
 #[derive(Debug, Serialize, ToSchema)]
+#[allow(dead_code)]
 pub struct TaskMemberResponse {
     pub user_id: Uuid,
     pub username: String,

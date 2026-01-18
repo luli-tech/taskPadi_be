@@ -156,10 +156,12 @@ impl AuthService {
             .delete_by_token(refresh_token)
             .await
     }
+      #[allow(dead_code)]
       pub async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
         self.user_repo.find_by_email(email).await
     }
-   pub async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>> {
+    #[allow(dead_code)]
+    pub async fn find_by_id(&self, id: uuid::Uuid) -> Result<Option<User>> {
         self.user_repo.find_by_id(id).await
     }
     pub async fn google_login_or_register(

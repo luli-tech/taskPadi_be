@@ -924,6 +924,68 @@ Retrieves paginated message history with a specific user (1-on-1 conversation on
 
 ---
 
+### PUT /api/messages/:id
+Updates a message. Only the sender can update their own messages.
+
+**Path Parameters:**
+- `id` (uuid, required): Message ID to update
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "content": "string (required, min: 1 character)",
+  "image_url": "string (optional)"
+}
+```
+
+**Fields:**
+- `content` (string, required): Updated message content (minimum 1 character)
+- `image_url` (string, optional): Updated image URL
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "sender_id": "uuid",
+  "receiver_id": "uuid | null",
+  "group_id": "uuid | null",
+  "content": "string",
+  "image_url": "string | null",
+  "is_read": false,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (e.g., empty content)
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not the message sender
+- `404 Not Found`: Message not found
+
+---
+
+### DELETE /api/messages/:id
+Deletes a message. Only the sender can delete their own messages.
+
+**Path Parameters:**
+- `id` (uuid, required): Message ID to delete
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not the message sender
+- `404 Not Found`: Message not found
+
+---
+
 ### PATCH /api/messages/:id/read
 Marks a specific message as read.
 
@@ -1326,10 +1388,11 @@ Server-Sent Events (SSE) stream for real-time notification delivery.
 ---
 
 ## Admin Management Endpoints (Base: /api/admin)
-**All endpoints require admin authentication (both auth middleware and admin middleware).**
 
 ### POST /api/admin/register
-Register a new admin user. Creates user with `is_admin: true` and `role: "admin"`.
+**Public endpoint - No authentication required.** Register a new admin user. Creates user with `is_admin: true`, `role: "admin"`, and `is_active: true`. 
+
+**Important:** Once registered, you immediately have full access to all admin features. No verification or approval is required. You can use the returned access token to access all other admin endpoints right away.
 
 **Path Parameters:** None
 
@@ -1360,19 +1423,26 @@ Register a new admin user. Creates user with `is_admin: true` and `role: "admin"
     "email": "string",
     "role": "admin",
     "is_admin": true,
-    ...
+    "is_active": true,
+    "avatar_url": "string | null",
+    "bio": "string | null",
+    "theme": "string",
+    "notification_enabled": true,
+    "created_at": "datetime"
   }
 }
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Validation error
-- `401 Unauthorized`: Missing or invalid authentication token
-- `403 Forbidden`: Not an admin user
-- `409 Conflict`: User already exists
+- `400 Bad Request`: Validation error (e.g., invalid email format, password too short, username too short)
+- `409 Conflict`: User already exists (duplicate email or username)
 - `500 Internal Server Error`: Server error
 
+**Note:** This endpoint is publicly accessible. No authentication token is required. After successful registration, you receive an access token that immediately grants you full admin privileges.
+
 ---
+
+**All endpoints below require admin authentication (both auth middleware and admin middleware).**
 
 ### GET /api/admin/users
 Lists all registered users (paginated). Admin only.
@@ -1925,7 +1995,10 @@ The OpenAPI specification is available at `/api-docs/openapi.json`.
 - Users registered via Google OAuth cannot login with email/password unless they set a password.
 
 ### Admin Registration
-- Only existing admin users can register new admin accounts via `/api/admin/register`.
+- **Public Access:** `/api/admin/register` is publicly accessible - no authentication required.
+- **Immediate Access:** Once you register as an admin, you immediately have full access to all admin features. No verification or approval is needed.
+- The registered user is created with `is_admin: true`, `role: "admin"`, and `is_active: true`.
+- You receive an access token upon registration that can be used immediately to access all admin endpoints.
 - Regular registration (`/api/auth/register`) always creates regular users (`is_admin: false`).
 
 ### Task Sharing

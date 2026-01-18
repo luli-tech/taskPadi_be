@@ -4,7 +4,7 @@ HOST=127.0.0.1
 PORT=3000
 
 # JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_SECRET=ihohihhih3i4h3i4h
 JWT_EXPIRATION_HOURS=24
 
 # Google OAuth Configuration

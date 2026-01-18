@@ -3,6 +3,7 @@ use crate::error::Result;
 use crate::task::task_repository::TaskRepository;
 use crate::task::task_models::Task;
 use crate::task::task_dto::{CreateTaskRequest, UpdateTaskRequest, UpdateTaskStatusRequest};
+use crate::notification::NotificationHelper;
 use uuid::Uuid;
 
 
@@ -10,11 +11,15 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct TaskService {
     repo: TaskRepository,
+    notification_helper: NotificationHelper,
 }
 
 impl TaskService {
-    pub fn new(repo: TaskRepository) -> Self {
-        Self { repo }
+    pub fn new(repo: TaskRepository, notification_helper: NotificationHelper) -> Self {
+        Self { 
+            repo,
+            notification_helper,
+        }
     }
 
     pub async fn list_tasks(
@@ -61,6 +66,11 @@ impl TaskService {
         // Add creator as owner
         let _ = self.repo.add_task_member(task.id, user_id, "owner", user_id).await;
 
+        // Send notification for task creation
+        let _ = self.notification_helper
+            .notify_task_created(user_id, &task.title, task.id)
+            .await;
+
         Ok(task)
     }
 
@@ -95,6 +105,25 @@ impl TaskService {
             "updated",
             Some(serde_json::json!(payload)),
         ).await;
+
+        // Send notification for task update
+        let changes: Vec<String> = vec![
+            payload.title.as_ref().map(|_| "title".to_string()),
+            payload.description.as_ref().map(|_| "description".to_string()),
+            payload.status.as_ref().map(|_| "status".to_string()),
+            payload.priority.as_ref().map(|_| "priority".to_string()),
+            payload.due_date.as_ref().map(|_| "due_date".to_string()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
+        if !changes.is_empty() {
+            let changes_text = changes.join(", ");
+            let _ = self.notification_helper
+                .notify_task_updated(user_id, &task.title, task.id, &changes_text)
+                .await;
+        }
 
         Ok(task)
     }
@@ -131,6 +160,18 @@ impl TaskService {
             "status_updated",
             Some(serde_json::json!({"new_status": payload.status})),
         ).await;
+
+        // Send notification if task was completed
+        if payload.status.to_lowercase() == "completed" {
+            let _ = self.notification_helper
+                .notify_task_completed(user_id, &task.title, task.id)
+                .await;
+        } else {
+            // Otherwise notify about status update
+            let _ = self.notification_helper
+                .notify_task_updated(user_id, &task.title, task.id, &format!("status changed to {}", payload.status))
+                .await;
+        }
 
         Ok(task)
     }
@@ -191,6 +232,7 @@ impl TaskService {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn get_task_with_members(
         &self,
         task_id: Uuid,

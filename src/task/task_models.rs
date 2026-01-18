@@ -60,6 +60,7 @@ pub struct Task {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+#[allow(dead_code)]
 pub struct TaskMember {
     pub id: Uuid,
     pub task_id: Uuid,
@@ -70,6 +71,7 @@ pub struct TaskMember {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
+#[allow(dead_code)]
 pub struct TaskActivity {
     pub id: Uuid,
     pub task_id: Uuid,
@@ -80,6 +82,7 @@ pub struct TaskActivity {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[allow(dead_code)]
 pub struct TaskWithMembers {
     #[serde(flatten)]
     pub task: Task,

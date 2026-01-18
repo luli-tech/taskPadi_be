@@ -13,6 +13,7 @@ impl UserRepository {
         Self { pool }
     }
 
+    #[allow(dead_code)]
     pub async fn create(&self, username: &str, email: &str, password_hash: &str) -> Result<User> {
         let user = sqlx::query_as::<_, User>(
             "INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING *"

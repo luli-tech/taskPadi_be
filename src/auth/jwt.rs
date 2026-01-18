@@ -68,6 +68,7 @@ pub fn verify_jwt(token: &str, secret: &str) -> Result<Claims> {
 }
 
 /// Legacy function for backward compatibility
+#[allow(dead_code)]
 pub fn create_jwt(user_id: Uuid, email: &str, secret: &str, expiration_hours: i64) -> Result<String> {
     let expiration = Utc::now()
         .checked_add_signed(Duration::hours(expiration_hours))

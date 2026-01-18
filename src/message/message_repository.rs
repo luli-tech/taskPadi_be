@@ -214,6 +214,7 @@ impl MessageRepository {
     }
 
 
+    #[allow(dead_code)]
     pub async fn count_unread(&self, user_id: Uuid) -> Result<i64> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM messages
@@ -233,5 +234,46 @@ impl MessageRepository {
             .await?;
 
         Ok(message)
+    }
+
+    pub async fn update(
+        &self,
+        message_id: Uuid,
+        sender_id: Uuid,
+        content: &str,
+        image_url: Option<&str>,
+    ) -> Result<Message> {
+        let message = sqlx::query_as::<_, Message>(
+            "UPDATE messages 
+             SET content = $1, image_url = $2, updated_at = NOW()
+             WHERE id = $3 AND sender_id = $4
+             RETURNING *"
+        )
+        .bind(content)
+        .bind(image_url)
+        .bind(message_id)
+        .bind(sender_id)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or(crate::error::AppError::NotFound("Message not found or you are not the sender".to_string()))?;
+
+        Ok(message)
+    }
+
+    pub async fn delete(&self, message_id: Uuid, sender_id: Uuid) -> Result<()> {
+        let result = sqlx::query(
+            "DELETE FROM messages 
+             WHERE id = $1 AND sender_id = $2"
+        )
+        .bind(message_id)
+        .bind(sender_id)
+        .execute(&self.pool)
+        .await?;
+
+        if result.rows_affected() == 0 {
+            return Err(crate::error::AppError::NotFound("Message not found or you are not the sender".to_string()));
+        }
+
+        Ok(())
     }
 }

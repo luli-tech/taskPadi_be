@@ -27,6 +27,7 @@ pub struct AddGroupMemberRequest {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+#[allow(dead_code)]
 pub struct RemoveGroupMemberRequest {
     pub user_id: Uuid,
 }

@@ -14,6 +14,7 @@ pub struct Message {
     pub image_url: Option<String>,
     pub is_read: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Clone,Debug, Serialize, Deserialize, ToSchema)]
@@ -26,6 +27,7 @@ pub struct MessageResponse {
     pub image_url: Option<String>,
     pub is_read: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl From<Message> for MessageResponse {
@@ -39,6 +41,7 @@ impl From<Message> for MessageResponse {
             image_url: message.image_url,
             is_read: message.is_read,
             created_at: message.created_at,
+            updated_at: message.updated_at,
         }
     }
 }
