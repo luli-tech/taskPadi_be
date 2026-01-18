@@ -128,18 +128,30 @@ impl GroupRepository {
     }
 
     pub async fn get_group_members(&self, group_id: Uuid) -> Result<Vec<(GroupMember, String, Option<String>)>> {
-        let members = sqlx::query_as::<_, (GroupMember, String, Option<String>)>(
-            "SELECT gm.*, u.username, u.avatar_url 
-             FROM group_members gm
-             INNER JOIN users u ON gm.user_id = u.id
-             WHERE gm.group_id = $1
-             ORDER BY gm.joined_at ASC"
+        // Query group members and user info separately, then combine
+        let members: Vec<GroupMember> = sqlx::query_as::<_, GroupMember>(
+            "SELECT * FROM group_members 
+             WHERE group_id = $1
+             ORDER BY joined_at ASC"
         )
         .bind(group_id)
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(members)
+        let mut result = Vec::new();
+        for member in members {
+            // Get user info for each member
+            let (username, avatar_url): (String, Option<String>) = sqlx::query_as(
+                "SELECT username, avatar_url FROM users WHERE id = $1"
+            )
+            .bind(member.user_id)
+            .fetch_one(&self.pool)
+            .await?;
+
+            result.push((member, username, avatar_url));
+        }
+
+        Ok(result)
     }
 
     pub async fn get_member_count(&self, group_id: Uuid) -> Result<i64> {

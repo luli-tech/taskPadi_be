@@ -110,7 +110,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         message_repository.clone(),
         ws_connections.clone(),
         notification_repository.clone(),
-        group_repository.clone(),
+        group_service.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
     let group_service = crate::group::group_service::GroupService::new(group_repository.clone());

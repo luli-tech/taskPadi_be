@@ -5,6 +5,7 @@ use crate::message::message_dto::SendMessageRequest;
 use crate::websocket::ConnectionManager;
 use crate::notification::notification_repository::NotificationRepository;
 use crate::websocket::types::{WsMessage, ChatMessagePayload};
+use crate::group::group_service::GroupService;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -12,7 +13,7 @@ pub struct MessageService {
     repo: MessageRepository,
     ws_manager: ConnectionManager,
     notification_repo: NotificationRepository,
-    group_repo: GroupRepository,
+    group_service: GroupService,
 }
 
 impl MessageService {
@@ -20,13 +21,13 @@ impl MessageService {
         repo: MessageRepository,
         ws_manager: ConnectionManager,
         notification_repo: NotificationRepository,
-        group_repo: GroupRepository,
+        group_service: GroupService,
     ) -> Self {
         Self {
             repo,
             ws_manager,
             notification_repo,
-            group_repo,
+            group_service,
         }
     }
 
@@ -73,9 +74,8 @@ impl MessageService {
                 .await;
         } else if let Some(group_id) = payload.group_id {
             // Group message - send to all group members
-            let members_data: Vec<(crate::group::group_models::GroupMember, String, Option<String>)> = 
-                self.group_repo.get_group_members(group_id).await?;
-            let member_ids: Vec<Uuid> = members_data.iter().map(|(member, _, _)| member.user_id).collect();
+            let members = self.group_service.list_group_members(group_id, sender_id).await?;
+            let member_ids: Vec<Uuid> = members.iter().map(|m| m.user_id).collect();
             
             // For group messages, use group_id as receiver_id for WebSocket compatibility
             let ws_message = WsMessage::ChatMessage(ChatMessagePayload {

@@ -1,7 +1,7 @@
 use crate::error::{Result, AppError};
 use uuid::Uuid;
 use super::group_repository::GroupRepository;
-use super::group_models::{Group, GroupMember, GroupResponse, GroupMemberResponse};
+use super::group_models::{GroupMember, GroupResponse, GroupMemberResponse};
 
 #[derive(Clone)]
 pub struct GroupService {

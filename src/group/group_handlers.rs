@@ -11,7 +11,7 @@ use crate::{
     error::Result,
     middleware::AuthUser,
     state::AppState,
-    group::group_dto::{CreateGroupRequest, UpdateGroupRequest, AddGroupMemberRequest, RemoveGroupMemberRequest},
+    group::group_dto::{CreateGroupRequest, UpdateGroupRequest, AddGroupMemberRequest},
 };
 
 /// Create a new group
@@ -194,7 +194,7 @@ pub async fn add_group_member(
     Path(group_id): Path<Uuid>,
     Json(payload): Json<AddGroupMemberRequest>,
 ) -> Result<impl IntoResponse> {
-    let member = state.group_service
+    let _member = state.group_service
         .add_member(group_id, user_id, payload.user_id)
         .await?;
 
