@@ -45,6 +45,25 @@ impl UserRepository {
         Ok(user)
     }
 
+    pub async fn create_admin_with_tx(
+        &self,
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        username: &str,
+        email: &str,
+        password_hash: &str,
+    ) -> Result<User> {
+        let user = sqlx::query_as::<_, User>(
+            "INSERT INTO users (username, email, password_hash, role, is_admin) VALUES ($1, $2, $3, 'admin', true) RETURNING *"
+        )
+        .bind(username)
+        .bind(email)
+        .bind(password_hash)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        Ok(user)
+    }
+
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>> {
         let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = $1")
             .bind(email)

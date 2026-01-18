@@ -77,6 +77,7 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::admin::handlers::get_all_tasks,
         crate::admin::handlers::get_user_tasks,
         crate::admin::handlers::delete_task,
+        crate::auth::auth_handlers::register_admin,
         crate::message::message_handlers::send_message,
         crate::message::message_handlers::get_conversation,
         crate::message::message_handlers::get_conversations,
@@ -215,6 +216,7 @@ pub fn create_router(state: AppState) -> Router {
 
     // Admin routes
     let admin_routes = Router::new()
+        .route("/register", post(auth_handlers::register_admin))
         .route("/users", get(admin_handlers::get_all_users))
         .route("/users/:user_id", get(admin_handlers::get_user_by_id)
             .put(admin_handlers::admin_update_user)

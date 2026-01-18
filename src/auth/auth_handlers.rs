@@ -65,6 +65,7 @@ pub async fn register(
 }
 
 /// Login with email and password
+/// Note: Only email authentication is supported. Users cannot login with username.
 #[utoipa::path(
     post,
     path = "/api/auth/login",
@@ -83,9 +84,7 @@ pub async fn login(
     payload.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    // let (user, access_token, refresh_token) = state.auth_service
-    //     .login(&payload.email, &payload.password)
-    //     .await?;
+    // Ensure only email is used for login (enforced by DTO validation)
     let (user, access_token, refresh_token) = state.auth_service
         .login(&payload.email, &payload.password)
         .await?;
@@ -223,4 +222,52 @@ pub async fn google_callback(
         refresh_token,
         user: user.into(),
     }))
+}
+
+/// Register a new admin user (Admin only)
+#[utoipa::path(
+    post,
+    path = "/api/admin/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 201, description = "Admin user registered successfully", body = AuthResponse),
+        (status = 400, description = "Validation error"),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Admin access required"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "admin"
+)]
+pub async fn register_admin(
+    State(state): State<AppState>,
+    Json(payload): Json<RegisterRequest>,
+) -> Result<impl IntoResponse> {
+    payload.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let password_hash = hash_password(&payload.password)?;
+
+    let (user, _access_token, _refresh_token) = state.auth_service
+        .register_admin(&payload.username, &payload.email, &password_hash)
+        .await
+        .map_err(|e| {
+            if let AppError::Database(ref db_err) = e {
+                if db_err.to_string().contains("duplicate key") {
+                    return AppError::BadRequest("User already exists".to_string());
+                }
+            }
+            e
+        })?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(AuthResponse {
+            access_token: create_access_token(user.id, &user.email, &user.role, &state.config.jwt_secret)?,
+            refresh_token: create_refresh_token(user.id, &user.email, &user.role, &state.config.jwt_secret)?,
+            user: user.into(),
+        }),
+    ))
 }

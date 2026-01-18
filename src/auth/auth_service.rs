@@ -54,6 +54,31 @@ impl AuthService {
         Ok((user, access_token, refresh_token))
     }
 
+    pub async fn register_admin(
+        &self,
+        username: &str,
+        email: &str,
+        password: &str,
+    ) -> Result<(User, String, String)> {
+        let password_hash = hash_password(password)?;
+        
+        let mut tx = self.db.begin().await?;
+        
+        let user = self.user_repo.create_admin_with_tx(&mut tx, username, email, &password_hash).await?;
+        
+        let access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        let refresh_token = create_refresh_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
+        
+        let expires_at = Utc::now() + Duration::days(7);
+        self.refresh_token_repo
+            .create_with_tx(&mut tx, user.id, &refresh_token, expires_at)
+            .await?;
+
+        tx.commit().await?;
+
+        Ok((user, access_token, refresh_token))
+    }
+
     pub async fn login(&self, email: &str, password: &str) -> Result<(User, String, String)> {
         let user = self
             .user_repo
