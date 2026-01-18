@@ -1,7 +1,7 @@
 use crate::{
     auth::{
         auth_dto::{AuthResponse, LoginRequest, RegisterRequest, RefreshTokenRequest, RefreshTokenResponse},
-        create_access_token, create_refresh_token, hash_password,
+        create_access_token, create_refresh_token,
         oauth::GoogleUserInfo,
     },
     error::{AppError, Result},
@@ -38,11 +38,9 @@ pub async fn register(
     payload.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-           // Hash password using imported function
-    let password_hash = hash_password(&payload.password)?;
-
+    // Password will be hashed in the service layer
     let (user, _access_token, _refresh_token) = state.auth_service
-        .register(&payload.username, &payload.email, &password_hash)
+        .register(&payload.username, &payload.email, &payload.password)
         .await
 
         .map_err(|e| {
@@ -248,10 +246,9 @@ pub async fn register_admin(
     payload.validate()
         .map_err(|e| AppError::Validation(e.to_string()))?;
 
-    let password_hash = hash_password(&payload.password)?;
-
+    // Password will be hashed in the service layer
     let (user, _access_token, _refresh_token) = state.auth_service
-        .register_admin(&payload.username, &payload.email, &password_hash)
+        .register_admin(&payload.username, &payload.email, &payload.password)
         .await
         .map_err(|e| {
             if let AppError::Database(ref db_err) = e {

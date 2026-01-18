@@ -52,8 +52,10 @@ impl UserRepository {
         email: &str,
         password_hash: &str,
     ) -> Result<User> {
+        // Create admin user with is_admin=true, role='admin', and is_active=true
+        // This ensures immediate access to all admin endpoints without approval
         let user = sqlx::query_as::<_, User>(
-            "INSERT INTO users (username, email, password_hash, role, is_admin) VALUES ($1, $2, $3, 'admin', true) RETURNING *"
+            "INSERT INTO users (username, email, password_hash, role, is_admin, is_active) VALUES ($1, $2, $3, 'admin', true, true) RETURNING *"
         )
         .bind(username)
         .bind(email)
