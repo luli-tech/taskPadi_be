@@ -18,17 +18,19 @@ impl MessageRepository {
     pub async fn create(
         &self,
         sender_id: Uuid,
-        receiver_id: Uuid,
+        receiver_id: Option<Uuid>,
+        group_id: Option<Uuid>,
         content: &str,
         image_url: Option<&str>,
     ) -> Result<Message> {
         let message = sqlx::query_as::<_, Message>(
-            "INSERT INTO messages (sender_id, receiver_id, content, image_url)
-             VALUES ($1, $2, $3, $4)
+            "INSERT INTO messages (sender_id, receiver_id, group_id, content, image_url)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING *",
         )
         .bind(sender_id)
         .bind(receiver_id)
+        .bind(group_id)
         .bind(content)
         .bind(image_url)
         .fetch_one(&self.pool)
@@ -46,8 +48,9 @@ impl MessageRepository {
     ) -> Result<Vec<Message>> {
         let messages = sqlx::query_as::<_, Message>(
             "SELECT * FROM messages
-             WHERE (sender_id = $1 AND receiver_id = $2)
-                OR (sender_id = $2 AND receiver_id = $1)
+             WHERE ((sender_id = $1 AND receiver_id = $2)
+                OR (sender_id = $2 AND receiver_id = $1))
+             AND group_id IS NULL
              ORDER BY created_at DESC
              LIMIT $3 OFFSET $4",
         )
@@ -61,11 +64,44 @@ impl MessageRepository {
         Ok(messages)
     }
 
+    pub async fn find_group_messages(
+        &self,
+        group_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Message>> {
+        let messages = sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages
+             WHERE group_id = $1
+             ORDER BY created_at DESC
+             LIMIT $2 OFFSET $3",
+        )
+        .bind(group_id)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(messages)
+    }
+
+    pub async fn count_group_messages(&self, group_id: Uuid) -> Result<i64> {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM messages WHERE group_id = $1",
+        )
+        .bind(group_id)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
+
     pub async fn count_conversation(&self, user_id: Uuid, other_user_id: Uuid) -> Result<i64> {
         let count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM messages
-             WHERE (sender_id = $1 AND receiver_id = $2)
-                OR (sender_id = $2 AND receiver_id = $1)",
+             WHERE ((sender_id = $1 AND receiver_id = $2)
+                OR (sender_id = $2 AND receiver_id = $1))
+             AND group_id IS NULL",
         )
         .bind(user_id)
         .bind(other_user_id)
@@ -91,7 +127,7 @@ impl MessageRepository {
                 content AS last_message,
                 created_at AS last_message_time
                 FROM messages
-                WHERE sender_id = $1 OR receiver_id = $1
+                WHERE (sender_id = $1 OR receiver_id = $1) AND group_id IS NULL
                 ORDER BY
                     CASE
                         WHEN sender_id = $1 THEN receiver_id
@@ -102,7 +138,7 @@ impl MessageRepository {
             unread_counts AS (
                 SELECT sender_id AS user_id, COUNT(*) AS unread_count
                 FROM messages
-                WHERE receiver_id = $1 AND is_read = false
+                WHERE receiver_id = $1 AND is_read = false AND group_id IS NULL
                 GROUP BY sender_id
             )
             SELECT
@@ -128,7 +164,7 @@ impl MessageRepository {
         sqlx::query(
             "UPDATE messages
              SET is_read = true
-             WHERE id = $1 AND receiver_id = $2",
+             WHERE id = $1 AND receiver_id = $2 AND group_id IS NULL",
         )
         .bind(message_id)
         .bind(user_id)
@@ -146,7 +182,7 @@ impl MessageRepository {
         sqlx::query(
             "UPDATE messages
              SET is_read = true
-             WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false",
+             WHERE receiver_id = $1 AND sender_id = $2 AND is_read = false AND group_id IS NULL",
         )
         .bind(user_id)
         .bind(other_user_id)
@@ -155,6 +191,28 @@ impl MessageRepository {
 
         Ok(())
     }
+
+    pub async fn mark_group_messages_as_read(
+        &self,
+        user_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        // Mark messages in group as read for this user
+        // Note: Group messages don't have individual receiver_id, so we track read status differently
+        // For now, we'll mark messages where the user is not the sender
+        sqlx::query(
+            "UPDATE messages
+             SET is_read = true
+             WHERE group_id = $1 AND sender_id != $2 AND is_read = false",
+        )
+        .bind(group_id)
+        .bind(user_id)
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
 
     pub async fn count_unread(&self, user_id: Uuid) -> Result<i64> {
         let count: i64 = sqlx::query_scalar(

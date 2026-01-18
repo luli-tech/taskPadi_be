@@ -18,6 +18,10 @@ use crate::{
         repository::AdminRepository,
         service::AdminService,
     },
+    group::{
+        group_repository::GroupRepository,
+        group_service::GroupService,
+    },
 };
 
 
@@ -41,6 +45,8 @@ pub struct AppState {
     pub message_service: MessageService,
     pub admin_repository: AdminRepository,
     pub admin_service: AdminService,
+    pub group_repository: GroupRepository,
+    pub group_service: GroupService,
 }
 
 #[derive(Clone)]

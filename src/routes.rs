@@ -12,6 +12,11 @@ use crate::{
         message_handlers,
         message_models::{Message, MessageResponse},
     },
+    group::{
+        group_handlers,
+        group_models::{Group, GroupResponse, GroupMemberResponse},
+        group_dto::{CreateGroupRequest, UpdateGroupRequest, AddGroupMemberRequest},
+    },
     middleware::auth_middleware,
     notification::{
         notification_dto::UpdateNotificationPreferencesRequest,
@@ -82,7 +87,16 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::message::message_handlers::send_message,
         crate::message::message_handlers::get_conversation,
         crate::message::message_handlers::get_conversations,
+        crate::message::message_handlers::get_group_messages,
         crate::message::message_handlers::mark_message_read,
+        crate::group::group_handlers::create_group,
+        crate::group::group_handlers::list_groups,
+        crate::group::group_handlers::get_group,
+        crate::group::group_handlers::update_group,
+        crate::group::group_handlers::delete_group,
+        crate::group::group_handlers::add_group_member,
+        crate::group::group_handlers::remove_group_member,
+        crate::group::group_handlers::list_group_members,
     ),
     components(
         schemas(
@@ -99,6 +113,12 @@ use utoipa_swagger_ui::SwaggerUi;
             UserStatsResponse,
             SendMessageRequest,
             ConversationUser,
+            CreateGroupRequest,
+            UpdateGroupRequest,
+            AddGroupMemberRequest,
+            Group,
+            GroupResponse,
+            GroupMemberResponse,
             admin_dto::AdminUpdateUserRequest,
             admin_dto::UpdateUserStatusRequest,
             admin_dto::UpdateAdminStatusRequest,
@@ -118,7 +138,8 @@ use utoipa_swagger_ui::SwaggerUi;
         (name = "notifications", description = "Notification endpoints"),
         (name = "users", description = "User profile endpoints"),
         (name = "admin", description = "Admin user management endpoints"),
-        (name = "messages", description = "User messaging endpoints")
+        (name = "messages", description = "User messaging endpoints"),
+        (name = "groups", description = "Group chat endpoints")
     ),
     modifiers(&SecurityAddon)
 )]
@@ -241,7 +262,19 @@ pub fn create_router(state: AppState) -> Router {
         .route("/", post(message_handlers::send_message))
         .route("/conversations", get(message_handlers::get_conversations))
         .route("/:user_id", get(message_handlers::get_conversation))
+        .route("/groups/:group_id", get(message_handlers::get_group_messages))
         .route("/:id/read", patch(message_handlers::mark_message_read))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    // Group routes
+    let group_routes = Router::new()
+        .route("/", post(group_handlers::create_group).get(group_handlers::list_groups))
+        .route("/:group_id", get(group_handlers::get_group).put(group_handlers::update_group).delete(group_handlers::delete_group))
+        .route("/:group_id/members", get(group_handlers::list_group_members).post(group_handlers::add_group_member))
+        .route("/:group_id/members/:user_id", delete(group_handlers::remove_group_member))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -262,6 +295,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/users", user_routes)
         .nest("/admin", admin_routes)
         .nest("/messages", message_routes)
+        .nest("/groups", group_routes)
         .merge(ws_routes);
 
     Router::new()

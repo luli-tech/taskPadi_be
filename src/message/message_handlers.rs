@@ -48,12 +48,19 @@ pub async fn send_message(
 ) -> Result<impl IntoResponse> {
     payload.validate()?;
 
-    // Verify receiver exists
-    let _receiver = state
-        .user_repository
-        .find_by_id(payload.receiver_id)
-        .await?
-        .ok_or(AppError::NotFound("Receiver not found".to_string()))?;
+    // If 1-on-1 message, verify receiver exists
+    if let Some(receiver_id) = payload.receiver_id {
+        let _receiver = state
+            .user_repository
+            .find_by_id(receiver_id)
+            .await?
+            .ok_or(AppError::NotFound("Receiver not found".to_string()))?;
+    }
+
+    // If group message, verify user is a member of the group
+    if let Some(group_id) = payload.group_id {
+        state.group_service.verify_membership(group_id, user_id).await?;
+    }
 
     // Create and broadcast message
     let message = state
@@ -122,7 +129,7 @@ pub async fn get_conversation(
     Ok((StatusCode::OK, Json(response)))
 }
 
-/// Get all conversations for the authenticated user
+/// Get all conversations for the authenticated user (1-on-1 only)
 #[utoipa::path(
     get,
     path = "/api/messages/conversations",
@@ -145,6 +152,68 @@ pub async fn get_conversations(
         .await?;
 
     Ok((StatusCode::OK, Json(conversations)))
+}
+
+/// Get group messages
+#[utoipa::path(
+    get,
+    path = "/api/messages/groups/{group_id}",
+    tag = "messages",
+    params(
+        ("group_id" = Uuid, Path, description = "Group ID to get messages from"),
+        ("page" = Option<u32>, Query, description = "Page number (default: 1)"),
+        ("limit" = Option<u32>, Query, description = "Items per page (default: 50)")
+    ),
+    responses(
+        (status = 200, description = "Paginated group messages", body = PaginatedResponse<MessageResponse>),
+        (status = 401, description = "Unauthorized"),
+        (status = 403, description = "Forbidden - Not a member"),
+        (status = 404, description = "Group not found")
+    ),
+    security(
+        ("bearer_auth" = [])
+    )
+)]
+pub async fn get_group_messages(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Path(group_id): Path<Uuid>,
+    Query(query): Query<MessageQuery>,
+) -> Result<impl IntoResponse> {
+    // Verify user is a member of the group
+    state.group_service.verify_membership(group_id, user_id).await?;
+
+    let page = query.page.unwrap_or(1);
+    let limit = query.limit.unwrap_or(50);
+    let offset = ((page - 1) * limit) as i64;
+
+    let (messages, total) = state
+        .message_service
+        .get_group_messages_with_count(group_id, limit as i64, offset)
+        .await?;
+
+    // Mark messages as read
+    let _ = state
+        .message_service
+        .mark_group_messages_as_read(user_id, group_id)
+        .await;
+
+    let message_responses: Vec<MessageResponse> = messages
+        .into_iter()
+        .map(MessageResponse::from)
+        .collect();
+
+    let total_pages = ((total as f64) / (limit as f64)).ceil() as u32;
+
+    let response = PaginatedResponse {
+        data: message_responses,
+        total,
+        page,
+        limit,
+        total_pages,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
 }
 
 /// Mark a message as read

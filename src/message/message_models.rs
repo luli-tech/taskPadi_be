@@ -8,7 +8,8 @@ use uuid::Uuid;
 pub struct Message {
     pub id: Uuid,
     pub sender_id: Uuid,
-    pub receiver_id: Uuid,
+    pub receiver_id: Option<Uuid>, // Nullable for group messages
+    pub group_id: Option<Uuid>, // Nullable for 1-on-1 messages
     pub content: String,
     pub image_url: Option<String>,
     pub is_read: bool,
@@ -19,7 +20,8 @@ pub struct Message {
 pub struct MessageResponse {
     pub id: Uuid,
     pub sender_id: Uuid,
-    pub receiver_id: Uuid,
+    pub receiver_id: Option<Uuid>, // Nullable for group messages
+    pub group_id: Option<Uuid>, // Nullable for 1-on-1 messages
     pub content: String,
     pub image_url: Option<String>,
     pub is_read: bool,
@@ -32,6 +34,7 @@ impl From<Message> for MessageResponse {
             id: message.id,
             sender_id: message.sender_id,
             receiver_id: message.receiver_id,
+            group_id: message.group_id,
             content: message.content,
             image_url: message.image_url,
             is_read: message.is_read,

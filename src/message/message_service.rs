@@ -12,6 +12,7 @@ pub struct MessageService {
     repo: MessageRepository,
     ws_manager: ConnectionManager,
     notification_repo: NotificationRepository,
+    group_repo: GroupRepository,
 }
 
 impl MessageService {
@@ -19,11 +20,13 @@ impl MessageService {
         repo: MessageRepository,
         ws_manager: ConnectionManager,
         notification_repo: NotificationRepository,
+        group_repo: GroupRepository,
     ) -> Self {
         Self {
             repo,
             ws_manager,
             notification_repo,
+            group_repo,
         }
     }
 
@@ -32,8 +35,16 @@ impl MessageService {
         sender_id: Uuid,
         payload: SendMessageRequest,
     ) -> Result<Message> {
+        // Validate that either receiver_id or group_id is provided, but not both
+        if (payload.receiver_id.is_some() && payload.group_id.is_some()) 
+            || (payload.receiver_id.is_none() && payload.group_id.is_none()) {
+            return Err(crate::error::AppError::BadRequest(
+                "Either receiver_id (for 1-on-1) or group_id (for group message) must be provided".to_string()
+            ));
+        }
+
         let message = self.repo
-            .create(sender_id, payload.receiver_id, &payload.content, payload.image_url.as_deref())
+            .create(sender_id, payload.receiver_id, payload.group_id, &payload.content, payload.image_url.as_deref())
             .await?;
 
         // Broadcast via WebSocket
@@ -46,23 +57,75 @@ impl MessageService {
             created_at: message.created_at.to_rfc3339(),
         });
 
-        // Send to receiver
-        self.ws_manager.send_to_user(&payload.receiver_id, ws_message.clone());
-        // Send back to sender for confirmation
-        self.ws_manager.send_to_user(&sender_id, ws_message);
+        if let Some(receiver_id) = payload.receiver_id {
+            // 1-on-1 message
+            self.ws_manager.send_to_user(&receiver_id, ws_message.clone());
+            self.ws_manager.send_to_user(&sender_id, ws_message);
 
-        // Create notification for receiver
-        let notification_text = if message.image_url.is_some() {
-            "New message with image".to_string()
-        } else {
-            format!("New message: {}", &message.content)
-        };
+            // Create notification for receiver
+            let notification_text = if message.image_url.is_some() {
+                "New message with image".to_string()
+            } else {
+                format!("New message: {}", &message.content)
+            };
 
-        let _ = self.notification_repo
-            .create(payload.receiver_id, None, &notification_text)
-            .await;
+            let _ = self.notification_repo
+                .create(receiver_id, None, &notification_text)
+                .await;
+        } else if let Some(group_id) = payload.group_id {
+            // Group message - send to all group members
+            let members_data = self.group_repo.get_group_members(group_id).await?;
+            let member_ids: Vec<Uuid> = members_data.iter().map(|(member, _, _)| member.user_id).collect();
+            
+            self.ws_manager.send_to_users(&member_ids, ws_message.clone());
+            // Also send to sender for confirmation
+            self.ws_manager.send_to_user(&sender_id, ws_message);
+
+            // Create notifications for all members except sender
+            let notification_text = if message.image_url.is_some() {
+                "New group message with image".to_string()
+            } else {
+                format!("New group message: {}", &message.content)
+            };
+
+            for member_id in member_ids {
+                if member_id != sender_id {
+                    let _ = self.notification_repo
+                        .create(member_id, None, &notification_text)
+                        .await;
+                }
+            }
+        }
 
         Ok(message)
+    }
+
+    pub async fn get_group_messages_with_count(
+        &self,
+        group_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<(Vec<Message>, i64)> {
+        let messages = self.repo.find_group_messages(group_id, limit, offset).await?;
+        let total = self.repo.count_group_messages(group_id).await?;
+        Ok((messages, total))
+    }
+
+    pub async fn get_group_messages(
+        &self,
+        group_id: Uuid,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<Message>> {
+        self.repo.find_group_messages(group_id, limit, offset).await
+    }
+
+    pub async fn mark_group_messages_as_read(
+        &self,
+        user_id: Uuid,
+        group_id: Uuid,
+    ) -> Result<()> {
+        self.repo.mark_group_messages_as_read(user_id, group_id).await
     }
 
     pub async fn get_conversation_with_count(

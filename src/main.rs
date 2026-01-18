@@ -91,6 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message_repository = crate::message::message_repository::MessageRepository::new(db.clone());
     let refresh_token_repository = crate::auth::auth_repository::RefreshTokenRepository::new(db.clone());
     let admin_repository = crate::admin::repository::AdminRepository::new(db.clone());
+    let group_repository = crate::group::group_repository::GroupRepository::new(db.clone());
 
     // Create services
     let user_service = crate::user::user_service::UserService::new(
@@ -108,8 +109,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         message_repository.clone(),
         ws_connections.clone(),
         notification_repository.clone(),
+        group_repository.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
+    let group_service = crate::group::group_service::GroupService::new(group_repository.clone());
 
     // Create application state
     let state = AppState {
@@ -130,6 +133,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         message_service,
         admin_repository,
         admin_service,
+        group_repository,
+        group_service,
     };
 
     // Start notification service

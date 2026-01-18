@@ -6,7 +6,8 @@ use uuid::Uuid;
 
 #[derive(Clone,Debug, Deserialize, Validate, ToSchema)]
 pub struct SendMessageRequest {
-    pub receiver_id: Uuid,
+    pub receiver_id: Option<Uuid>, // For 1-on-1 messages
+    pub group_id: Option<Uuid>, // For group messages
     #[validate(length(min = 1))]
     pub content: String,
     pub image_url: Option<String>,
