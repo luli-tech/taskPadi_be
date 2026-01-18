@@ -120,6 +120,70 @@ impl UserRepository {
         Ok(user)
     }
 
+    pub async fn list_all_users(
+        &self,
+        exclude_user_id: Uuid,
+        limit: i64,
+        offset: i64,
+        search: Option<&str>,
+    ) -> Result<(Vec<User>, i64)> {
+        let search_term = search.map(|s| format!("%{}%", s));
+        
+        let users = if let Some(ref search_str) = search_term {
+            sqlx::query_as::<_, User>(
+                "SELECT * FROM users 
+                 WHERE id != $1 
+                 AND is_active = true 
+                 AND (username ILIKE $4 OR email ILIKE $4)
+                 ORDER BY username ASC 
+                 LIMIT $2 OFFSET $3"
+            )
+            .bind(exclude_user_id)
+            .bind(limit)
+            .bind(offset)
+            .bind(search_str)
+            .fetch_all(&self.pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, User>(
+                "SELECT * FROM users 
+                 WHERE id != $1 
+                 AND is_active = true 
+                 ORDER BY username ASC 
+                 LIMIT $2 OFFSET $3"
+            )
+            .bind(exclude_user_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(&self.pool)
+            .await?
+        };
+
+        let total = if let Some(ref search_str) = search_term {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM users 
+                 WHERE id != $1 
+                 AND is_active = true 
+                 AND (username ILIKE $2 OR email ILIKE $2)"
+            )
+            .bind(exclude_user_id)
+            .bind(search_str)
+            .fetch_one(&self.pool)
+            .await?
+        } else {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM users 
+                 WHERE id != $1 
+                 AND is_active = true"
+            )
+            .bind(exclude_user_id)
+            .fetch_one(&self.pool)
+            .await?
+        };
+
+        Ok((users, total))
+    }
+
     pub async fn update_profile(
         &self,
         user_id: Uuid,

@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
@@ -11,6 +11,7 @@ use crate::{
     error::Result,
     middleware::AuthUser,
     state::AppState,
+    task::task_dto::PaginatedResponse,
     user::user_dto::UpdateProfileRequest,
 };
 
@@ -18,6 +19,13 @@ use crate::{
 pub struct PaginationParams {
     pub page: Option<u32>,
     pub limit: Option<u32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UserSearchParams {
+    pub page: Option<u32>,
+    pub limit: Option<u32>,
+    pub search: Option<String>,
 }
 
 /// Get current user profile
@@ -97,4 +105,48 @@ pub async fn get_user_stats(
     Ok((StatusCode::OK, Json(stats)))
 }
 
+/// List all available users (for chat/messaging)
+#[utoipa::path(
+    get,
+    path = "/api/users",
+    tag = "users",
+    params(
+        ("page" = Option<u32>, Query, description = "Page number (default: 1)"),
+        ("limit" = Option<u32>, Query, description = "Items per page (default: 20, max: 100)"),
+        ("search" = Option<String>, Query, description = "Search by username or email")
+    ),
+    responses(
+        (status = 200, description = "List of users retrieved successfully", body = PaginatedResponse<UserResponse>),
+        (status = 401, description = "Unauthorized")
+    ),
+    security(
+        ("bearer_auth" = [])
+    )
+)]
+pub async fn list_users(
+    State(state): State<AppState>,
+    AuthUser(user_id): AuthUser,
+    Query(params): Query<UserSearchParams>,
+) -> Result<impl IntoResponse> {
+    let page = params.page.unwrap_or(1).max(1);
+    let limit = params.limit.unwrap_or(20).min(100).max(1);
+    let offset = ((page - 1) * limit) as i64;
+
+    let (users, total) = state
+        .user_service
+        .list_users(user_id, limit as i64, offset, params.search)
+        .await?;
+
+    let total_pages = ((total as f64) / (limit as f64)).ceil() as u32;
+
+    let response = PaginatedResponse {
+        data: users,
+        total,
+        page,
+        limit,
+        total_pages,
+    };
+
+    Ok((StatusCode::OK, Json(response)))
+}
 

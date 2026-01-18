@@ -65,6 +65,7 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::notification::notification_handlers::mark_notification_read,
         crate::notification::notification_handlers::delete_notification,
         crate::notification::notification_handlers::update_notification_preferences,
+        crate::user::user_handlers::list_users,
         crate::user::user_handlers::get_current_user,
         crate::user::user_handlers::update_current_user,
         crate::user::user_handlers::get_user_stats,
@@ -209,6 +210,7 @@ pub fn create_router(state: AppState) -> Router {
     let user_routes = Router::new()
         .route("/me", get(user_handlers::get_current_user).put(user_handlers::update_current_user))
         .route("/me/stats", get(user_handlers::get_user_stats))
+        .route("/", get(user_handlers::list_users))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

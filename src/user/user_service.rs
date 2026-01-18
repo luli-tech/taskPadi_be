@@ -78,4 +78,24 @@ impl UserService {
             urgent_priority_tasks,
         })
     }
+
+    pub async fn list_users(
+        &self,
+        current_user_id: Uuid,
+        limit: i64,
+        offset: i64,
+        search: Option<String>,
+    ) -> Result<(Vec<UserResponse>, i64)> {
+        let (users, total) = self
+            .user_repository
+            .list_all_users(current_user_id, limit, offset, search.as_deref())
+            .await?;
+
+        let user_responses: Vec<UserResponse> = users
+            .into_iter()
+            .map(|u| u.into())
+            .collect();
+
+        Ok((user_responses, total))
+    }
 }

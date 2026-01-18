@@ -9,401 +9,1331 @@ All protected endpoints require a Bearer token in the Authorization header:
 Authorization: Bearer <your_jwt_token>
 ```
 
+---
+
 ## Authentication Endpoints (Base: /api/auth)
 
 ### POST /api/auth/register
-Creates a new user account.
-- **Request Body:**
-  - `username` (string, required): Username for the account
-  - `email` (string, required): Valid email address
-  - `password` (string, required): Password (minimum length enforced)
-- **Response:** 201 Created
-  - Returns `access_token`, `refresh_token`, and `user` object
-- **Errors:** 400 (Validation error), 409 (User already exists)
+Creates a new regular user account (creates users with `is_admin: false` by default).
+
+**Request Body (JSON):**
+```json
+{
+  "username": "string (required, min: 3, max: 255 characters)",
+  "email": "string (required, valid email format)",
+  "password": "string (required, min: 6 characters)"
+}
+```
+
+**Fields:**
+- `username` (string, required): Username for the account (3-255 characters)
+- `email` (string, required): Valid email address
+- `password` (string, required): Password (minimum 6 characters)
+
+**Response:** `201 Created`
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "user": {
+    "id": "uuid",
+    "username": "string",
+    "email": "string",
+    "role": "user",
+    "is_admin": false,
+    "avatar_url": "string | null",
+    "bio": "string | null",
+    "theme": "string",
+    "is_active": true,
+    "notification_enabled": true,
+    "created_at": "datetime"
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (e.g., invalid email format, password too short)
+- `409 Conflict`: User already exists (duplicate email or username)
+- `500 Internal Server Error`: Server error
+
+---
 
 ### POST /api/auth/login
-Authenticates user and returns JWT tokens.
-- **Request Body:**
-  - `email` (string, required): User email
-  - `password` (string, required): User password
-- **Response:** 200 OK
-  - Returns `access_token`, `refresh_token`, and `user` object
-- **Errors:** 401 (Invalid credentials)
+Authenticates user with email and password. **Note: Login is email-only. Username login is not supported.**
+
+**Request Body (JSON):**
+```json
+{
+  "email": "string (required, valid email format)",
+  "password": "string (required, min: 6 characters)"
+}
+```
+
+**Fields:**
+- `email` (string, required): User email address (must be valid email format)
+- `password` (string, required): User password (minimum 6 characters)
+
+**Response:** `200 OK`
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "user": {
+    "id": "uuid",
+    "username": "string",
+    "email": "string",
+    "role": "string",
+    "is_admin": boolean,
+    "avatar_url": "string | null",
+    "bio": "string | null",
+    "theme": "string",
+    "is_active": boolean,
+    "notification_enabled": boolean,
+    "created_at": "datetime"
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (invalid email format, password too short)
+- `401 Unauthorized`: Authentication failed with specific error message:
+  - `"No account found with this email address"` - Email doesn't exist in the system
+  - `"Incorrect password"` - Email exists but password is wrong
+  - `"This account was created with Google. Please use Google login"` - Account was created via OAuth and has no password
+- `500 Internal Server Error`: Server error
+
+---
 
 ### POST /api/auth/refresh
-Issues a new access token using a valid refresh token.
-- **Request Body:**
-  - `refresh_token` (string, required): Valid refresh token
-- **Response:** 200 OK
-  - Returns new `access_token`
-- **Errors:** 401 (Invalid or expired token)
+Issues a new access token and refresh token using a valid refresh token.
+
+**Request Body (JSON):**
+```json
+{
+  "refresh_token": "string (required)"
+}
+```
+
+**Fields:**
+- `refresh_token` (string, required): Valid refresh token from previous login/register
+
+**Response:** `200 OK`
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Invalid or expired refresh token
+- `500 Internal Server Error`: Server error
+
+---
 
 ### POST /api/auth/logout
 Revokes the refresh token and logs out the user.
-- **Request Body:**
-  - `refresh_token` (string, required): Refresh token to revoke
-- **Response:** 200 OK
-- **Errors:** 401 (Unauthorized)
+
+**Request Body (JSON):**
+```json
+{
+  "refresh_token": "string (required)"
+}
+```
+
+**Fields:**
+- `refresh_token` (string, required): Refresh token to revoke
+
+**Response:** `200 OK` (empty body)
+
+**Error Responses:**
+- `400 Bad Request`: Invalid input
+- `401 Unauthorized`: Invalid token
+- `500 Internal Server Error`: Server error
+
+---
 
 ### GET /api/auth/google
-Initiates Google OAuth2 login flow.
-- **Response:** 302 Redirect to Google OAuth consent page
-- **Note:** Public endpoint, no authentication required
+Initiates Google OAuth2 login flow. Redirects to Google OAuth consent page.
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `302 Found` (Redirect to Google OAuth)
+
+**Note:** Public endpoint, no authentication required
+
+---
 
 ### GET /api/auth/google/callback
-Handles the callback from Google OAuth2.
-- **Query Parameters:**
-  - `code` (string, required): Authorization code from Google
-- **Response:** 200 OK or redirect with tokens
-- **Note:** Public endpoint, no authentication required
+Handles the callback from Google OAuth2 after user authorization.
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `code` (string, required): Authorization code from Google
+- `state` (string, optional): CSRF token (ignored but accepted)
+
+**Response:** `200 OK`
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "user": {
+    "id": "uuid",
+    "username": "string",
+    "email": "string",
+    "role": "string",
+    "is_admin": boolean,
+    "avatar_url": "string | null",
+    ...
+  }
+}
+```
+
+**Error Responses:**
+- `500 Internal Server Error`: OAuth failed (invalid code, network error, etc.)
+
+**Note:** Public endpoint, no authentication required
 
 ---
 
 ## User Profile Endpoints (Base: /api/users)
-All endpoints require authentication.
+**All endpoints require authentication.**
+
+### GET /api/users
+Lists all available users (for finding users to chat with). Excludes the current user and inactive users.
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1, minimum: 1)
+- `limit` (integer, optional): Items per page (default: 20, maximum: 100)
+- `search` (string, optional): Search by username or email (case-insensitive partial match)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "username": "string",
+      "email": "string",
+      "avatar_url": "string | null",
+      "bio": "string | null",
+      "theme": "string",
+      "role": "string",
+      "is_admin": boolean,
+      "is_active": true,
+      "notification_enabled": boolean,
+      "created_at": "datetime"
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Note:** 
+- Only returns active users (`is_active = true`)
+- Excludes the authenticated user
+- Results are sorted alphabetically by username
+- Useful for finding users to start new conversations with
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### GET /api/users/me
 Returns the currently authenticated user's profile.
-- **Response:** 200 OK
-  - Returns user object with `id`, `username`, `email`, `role`, `avatar_url`, `bio`, `theme`, etc.
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Headers:**
+- `Authorization: Bearer <token>` (required)
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "email": "string",
+  "role": "string",
+  "is_admin": boolean,
+  "avatar_url": "string | null",
+  "bio": "string | null",
+  "theme": "string",
+  "is_active": boolean,
+  "notification_enabled": boolean,
+  "created_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### PUT /api/users/me
 Updates the current user's profile information.
-- **Request Body:**
-  - `username` (string, optional): New username
-  - `bio` (string, optional): User biography
-  - `theme` (string, optional): UI theme preference
-  - `avatar_url` (string, optional): Profile picture URL
-- **Response:** 200 OK
-  - Returns updated user object
-- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "username": "string (optional, min: 3, max: 50 characters)",
+  "bio": "string (optional)",
+  "theme": "string (optional, min: 1, max: 50 characters)",
+  "avatar_url": "string (optional)"
+}
+```
+
+**Fields:**
+- `username` (string, optional): New username (3-50 characters)
+- `bio` (string, optional): User biography
+- `theme` (string, optional): UI theme preference (1-50 characters)
+- `avatar_url` (string, optional): Profile picture URL
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "email": "string",
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (e.g., username too short)
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### GET /api/users/me/stats
 Returns task statistics for the current user.
-- **Response:** 200 OK
-  - Returns object with `total`, `pending`, `in_progress`, `completed`, `overdue`, etc.
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+{
+  "total_tasks": integer,
+  "pending_tasks": integer,
+  "in_progress_tasks": integer,
+  "completed_tasks": integer,
+  "archived_tasks": integer,
+  "completion_rate": float (0.0-1.0),
+  "low_priority_tasks": integer,
+  "medium_priority_tasks": integer,
+  "high_priority_tasks": integer,
+  "urgent_priority_tasks": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
 
 ---
 
 ## Task Management Endpoints (Base: /api/tasks)
-All endpoints require authentication.
+**All endpoints require authentication.**
 
 ### GET /api/tasks
-Retrieves a paginated list of tasks (including shared ones).
-- **Query Parameters:**
-  - `status` (string, optional): Filter by status (pending, in_progress, completed, cancelled)
-  - `statuses[]` (array, optional): Filter by multiple statuses
-  - `priority` (string, optional): Filter by priority (low, medium, high, urgent)
-  - `priorities[]` (array, optional): Filter by multiple priorities
-  - `search` (string, optional): Search in title and description
-  - `created_from` (datetime, optional): Filter tasks created after this date
-  - `created_to` (datetime, optional): Filter tasks created before this date
-  - `due_from` (datetime, optional): Filter tasks due after this date
-  - `due_to` (datetime, optional): Filter tasks due before this date
-  - `sort_by` (string, optional): Sort field (created_at, due_date, priority, status, title)
-  - `sort_order` (string, optional): Sort order (asc, desc)
-  - `page` (integer, optional): Page number (default: 1)
-  - `limit` (integer, optional): Items per page (default: 20)
-- **Response:** 200 OK
-  - Returns paginated response with `data`, `total`, `page`, `limit`, `total_pages`
-- **Errors:** 401 (Unauthorized)
+Retrieves a paginated list of tasks (including tasks shared with the user).
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `status` (string, optional): Filter by single status
+  - Values: `pending`, `in_progress`, `completed`, `cancelled`
+- `statuses[]` (array of strings, optional): Filter by multiple statuses
+  - Example: `?statuses[]=pending&statuses[]=in_progress`
+- `priority` (string, optional): Filter by single priority
+  - Values: `low`, `medium`, `high`, `urgent`
+- `priorities[]` (array of strings, optional): Filter by multiple priorities
+  - Example: `?priorities[]=high&priorities[]=urgent`
+- `search` (string, optional): Search in title and description (case-insensitive)
+- `created_from` (datetime, optional): Filter tasks created after this date (ISO 8601 format)
+- `created_to` (datetime, optional): Filter tasks created before this date (ISO 8601 format)
+- `due_from` (datetime, optional): Filter tasks due after this date (ISO 8601 format)
+- `due_to` (datetime, optional): Filter tasks due before this date (ISO 8601 format)
+- `sort_by` (string, optional): Sort field
+  - Values: `created_at`, `due_date`, `priority`, `status`, `title`
+  - Default: `created_at`
+- `sort_order` (string, optional): Sort direction
+  - Values: `asc`, `desc`
+  - Default: `desc`
+- `page` (integer, optional): Page number (default: 1, minimum: 1)
+- `limit` (integer, optional): Items per page (default: 20, maximum: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "title": "string",
+      "description": "string | null",
+      "status": "string",
+      "priority": "string",
+      "due_date": "datetime | null",
+      "reminder_time": "datetime | null",
+      "notified": boolean,
+      "created_at": "datetime",
+      "updated_at": "datetime"
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### POST /api/tasks
 Creates a new task.
-- **Request Body:**
-  - `title` (string, required): Task title (1-500 characters)
-  - `description` (string, optional): Task description
-  - `priority` (string, optional): Priority level (low, medium, high, urgent)
-  - `due_date` (datetime, optional): Due date for the task
-  - `reminder_time` (datetime, optional): Reminder notification time
-- **Response:** 201 Created
-  - Returns created task object
-- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "title": "string (required, min: 1, max: 500 characters)",
+  "description": "string (optional)",
+  "priority": "string (optional)",
+  "due_date": "datetime (optional, ISO 8601 format)",
+  "reminder_time": "datetime (optional, ISO 8601 format)"
+}
+```
+
+**Fields:**
+- `title` (string, required): Task title (1-500 characters)
+- `description` (string, optional): Task description
+- `priority` (string, optional): Priority level
+  - Values: `low`, `medium`, `high`, `urgent`
+  - Default: `medium`
+- `due_date` (datetime, optional): Due date for the task (ISO 8601 format)
+- `reminder_time` (datetime, optional): Reminder notification time (ISO 8601 format)
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "title": "string",
+  "description": "string | null",
+  "status": "pending",
+  "priority": "string",
+  "due_date": "datetime | null",
+  "reminder_time": "datetime | null",
+  "notified": false,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (e.g., title too long, invalid priority)
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### GET /api/tasks/:id
 Retrieves detailed information about a specific task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Response:** 200 OK
-  - Returns task object with full details
-- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "title": "string",
+  "description": "string | null",
+  "status": "string",
+  "priority": "string",
+  "due_date": "datetime | null",
+  "reminder_time": "datetime | null",
+  "notified": boolean,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: User doesn't have access to this task (not owner or member)
+- `404 Not Found`: Task not found
+
+---
 
 ### PUT /api/tasks/:id
 Updates an existing task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Request Body:**
-  - `title` (string, optional): Task title (1-500 characters)
-  - `description` (string, optional): Task description
-  - `status` (string, optional): Task status
-  - `priority` (string, optional): Priority level
-  - `due_date` (datetime, optional): Due date
-  - `reminder_time` (datetime, optional): Reminder time
-- **Response:** 200 OK
-  - Returns updated task object
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not task owner), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "title": "string (optional, min: 1, max: 500 characters)",
+  "description": "string (optional)",
+  "status": "string (optional)",
+  "priority": "string (optional)",
+  "due_date": "datetime (optional, ISO 8601 format)",
+  "reminder_time": "datetime (optional, ISO 8601 format)"
+}
+```
+
+**Fields:**
+- `title` (string, optional): Task title (1-500 characters)
+- `description` (string, optional): Task description
+- `status` (string, optional): Task status
+  - Values: `pending`, `in_progress`, `completed`, `cancelled`
+- `priority` (string, optional): Priority level
+  - Values: `low`, `medium`, `high`, `urgent`
+- `due_date` (datetime, optional): Due date (ISO 8601 format)
+- `reminder_time` (datetime, optional): Reminder time (ISO 8601 format)
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "user_id": "uuid",
+  "title": "string",
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not task owner (only owner can update)
+- `404 Not Found`: Task not found
+
+---
 
 ### DELETE /api/tasks/:id
 Deletes a task (only allowed for task owner).
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Response:** 204 No Content
-- **Errors:** 401 (Unauthorized), 403 (Not task owner), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not task owner (only owner can delete)
+- `404 Not Found`: Task not found
+
+---
 
 ### PATCH /api/tasks/:id/status
 Quickly updates only the status of a task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Request Body:**
-  - `status` (string, required): New status (pending, in_progress, completed, cancelled)
-- **Response:** 200 OK
-  - Returns updated task object
-- **Errors:** 400 (Invalid status), 401 (Unauthorized), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "status": "string (required)"
+}
+```
+
+**Fields:**
+- `status` (string, required): New status
+  - Values: `pending`, `in_progress`, `completed`, `cancelled`
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "status": "string",
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Invalid status value
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Task not found
+
+---
 
 ### POST /api/tasks/:id/share
 Shares a task with other users (Collaboration feature).
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Request Body:**
-  - `user_ids` (array of uuid, required): List of user IDs to share the task with
-- **Response:** 200 OK
-  - Returns task object with updated members
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "user_ids": ["uuid", "uuid", ...] (required, array of UUIDs, min: 1 user)
+}
+```
+
+**Fields:**
+- `user_ids` (array of uuid, required): List of user IDs to share the task with (minimum 1 user)
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "title": "string",
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (empty array, invalid UUID)
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Task not found or user(s) not found
+
+---
 
 ### GET /api/tasks/:id/members
 Lists all members/collaborators of a task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Response:** 200 OK
-  - Returns array of user objects
-- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "user_id": "uuid",
+    "username": "string",
+    "avatar_url": "string | null",
+    "role": "string",
+    "added_at": "datetime",
+    "added_by": "uuid | null"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Task not found
+
+---
 
 ### DELETE /api/tasks/:id/members/:user_id
 Removes a collaborator from a task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-  - `user_id` (uuid, required): User ID to remove
-- **Response:** 204 No Content
-- **Errors:** 401 (Unauthorized), 403 (Not task owner), 404 (Task or member not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+- `user_id` (uuid, required): User ID to remove from task
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not task owner (only owner can remove members)
+- `404 Not Found`: Task not found or user not a member
+
+---
 
 ### GET /api/tasks/:id/activity
 Returns the activity logs (history) for a specific task.
-- **Path Parameters:**
-  - `id` (uuid, required): Task ID
-- **Response:** 200 OK
-  - Returns array of activity log entries
-- **Errors:** 401 (Unauthorized), 404 (Task not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "user_id": "uuid | null",
+    "username": "string | null",
+    "action": "string",
+    "details": "object | null",
+    "created_at": "datetime"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Task not found
+
+---
 
 ### GET /api/tasks/stream
 Server-Sent Events (SSE) stream for real-time task updates.
-- **Response:** 200 OK (SSE stream)
-  - Streams task update events as they occur
-- **Headers:** Requires `Accept: text/event-stream`
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Headers:**
+- `Accept: text/event-stream` (recommended)
+
+**Response:** `200 OK` (SSE stream)
+- Content-Type: `text/event-stream`
+- Streams task update events as they occur (create, update, delete, status changes)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+**Note:** Connection remains open until client disconnects. Server sends periodic keep-alive pings.
 
 ---
 
 ## Messaging Endpoints (Base: /api/messages)
-All endpoints require authentication.
+**All endpoints require authentication.**
 
 ### GET /api/messages/conversations
 Retrieves a list of all active conversations for the authenticated user.
-- **Response:** 200 OK
-  - Returns array of `ConversationUser` objects containing:
-    - `user_id`: Other user's ID
-    - `username`: Other user's username
-    - `avatar_url`: Other user's avatar URL
-    - `last_message`: Last message content
-    - `last_message_time`: Timestamp of last message
-    - `unread_count`: Number of unread messages
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "user_id": "uuid",
+    "username": "string",
+    "avatar_url": "string | null",
+    "last_message": "string",
+    "last_message_time": "datetime",
+    "unread_count": integer
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### POST /api/messages
 Sends a direct message to another user.
-- **Request Body:**
-  - `receiver_id` (uuid, required): ID of the message recipient
-  - `content` (string, required): Message content (minimum 1 character)
-  - `image_url` (string, optional): URL of attached image
-- **Response:** 201 Created
-  - Returns `MessageResponse` object with message details
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 404 (Receiver not found)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "receiver_id": "uuid (required)",
+  "content": "string (required, min: 1 character)",
+  "image_url": "string (optional)"
+}
+```
+
+**Fields:**
+- `receiver_id` (uuid, required): ID of the message recipient
+- `content` (string, required): Message content (minimum 1 character)
+- `image_url` (string, optional): URL of attached image
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "sender_id": "uuid",
+  "receiver_id": "uuid",
+  "content": "string",
+  "image_url": "string | null",
+  "is_read": false,
+  "created_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error (empty content, invalid UUID)
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Receiver not found
+
+---
 
 ### GET /api/messages/:user_id
 Retrieves paginated message history with a specific user.
-- **Path Parameters:**
-  - `user_id` (uuid, required): Other user's ID to get conversation with
-- **Query Parameters:**
-  - `page` (integer, optional): Page number (default: 1)
-  - `limit` (integer, optional): Items per page (default: 50)
-- **Response:** 200 OK
-  - Returns paginated response (`PaginatedResponse<MessageResponse>`) with:
-    - `data`: Array of messages
-    - `total`: Total number of messages
-    - `page`: Current page number
-    - `limit`: Items per page
-    - `total_pages`: Total number of pages
-  - Automatically marks messages from the other user as read
-- **Errors:** 401 (Unauthorized), 404 (User not found)
+
+**Path Parameters:**
+- `user_id` (uuid, required): Other user's ID to get conversation with
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1)
+- `limit` (integer, optional): Items per page (default: 50)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "sender_id": "uuid",
+      "receiver_id": "uuid",
+      "content": "string",
+      "image_url": "string | null",
+      "is_read": boolean,
+      "created_at": "datetime"
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Note:** Automatically marks messages from the other user as read.
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: User not found
+
+---
 
 ### PATCH /api/messages/:id/read
 Marks a specific message as read.
-- **Path Parameters:**
-  - `id` (uuid, required): Message ID to mark as read
-- **Response:** 200 OK
-- **Errors:** 401 (Unauthorized), 404 (Message not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Message ID to mark as read
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `200 OK` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Message not found
 
 ---
 
 ## Notification Endpoints (Base: /api/notifications)
-All endpoints require authentication.
+**All endpoints require authentication.**
 
 ### GET /api/notifications
 Lists all notifications for the current user.
-- **Response:** 200 OK
-  - Returns array of notification objects
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "user_id": "uuid",
+    "task_id": "uuid | null",
+    "message": "string",
+    "is_read": boolean,
+    "created_at": "datetime"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### PATCH /api/notifications/:id/read
 Marks a notification as read.
-- **Path Parameters:**
-  - `id` (uuid, required): Notification ID
-- **Response:** 200 OK
-- **Errors:** 401 (Unauthorized), 404 (Notification not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Notification ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `200 OK` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Notification not found
+
+---
 
 ### DELETE /api/notifications/:id
 Deletes a specific notification.
-- **Path Parameters:**
-  - `id` (uuid, required): Notification ID
-- **Response:** 204 No Content
-- **Errors:** 401 (Unauthorized), 404 (Notification not found)
+
+**Path Parameters:**
+- `id` (uuid, required): Notification ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Notification not found
+
+---
 
 ### PUT /api/notifications/preferences
 Updates global notification settings for the user.
-- **Request Body:**
-  - `notification_enabled` (boolean, optional): Enable/disable notifications
-- **Response:** 200 OK
-  - Returns updated preferences
-- **Errors:** 400 (Validation error), 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "notification_enabled": boolean (required)
+}
+```
+
+**Fields:**
+- `notification_enabled` (boolean, required): Enable/disable notifications
+
+**Response:** `200 OK`
+```json
+{
+  "notification_enabled": boolean
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
 
 ### GET /api/notifications/stream
 Server-Sent Events (SSE) stream for real-time notification delivery.
-- **Response:** 200 OK (SSE stream)
-  - Streams notification events as they occur
-- **Headers:** Requires `Accept: text/event-stream`
-- **Errors:** 401 (Unauthorized)
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Headers:**
+- `Accept: text/event-stream` (recommended)
+
+**Response:** `200 OK` (SSE stream)
+- Content-Type: `text/event-stream`
+- Streams notification events as they occur
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+**Note:** Connection remains open until client disconnects. Server sends periodic keep-alive pings.
 
 ---
 
 ## Admin Management Endpoints (Base: /api/admin)
-All endpoints require admin authentication.
+**All endpoints require admin authentication (both auth middleware and admin middleware).**
+
+### POST /api/admin/register
+Register a new admin user. Creates user with `is_admin: true` and `role: "admin"`.
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "username": "string (required, min: 3, max: 255 characters)",
+  "email": "string (required, valid email format)",
+  "password": "string (required, min: 6 characters)"
+}
+```
+
+**Fields:**
+- `username` (string, required): Username for the admin account (3-255 characters)
+- `email` (string, required): Valid email address
+- `password` (string, required): Password (minimum 6 characters)
+
+**Response:** `201 Created`
+```json
+{
+  "access_token": "string",
+  "refresh_token": "string",
+  "user": {
+    "id": "uuid",
+    "username": "string",
+    "email": "string",
+    "role": "admin",
+    "is_admin": true,
+    ...
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `409 Conflict`: User already exists
+- `500 Internal Server Error`: Server error
+
+---
 
 ### GET /api/admin/users
-Lists all registered users (paginated).
-- **Query Parameters:**
-  - `page` (integer, optional): Page number (default: 1)
-  - `limit` (integer, optional): Items per page (default: 20)
-- **Response:** 200 OK
-  - Returns paginated list of users
-- **Errors:** 401 (Unauthorized), 403 (Not an admin)
+Lists all registered users (paginated). Admin only.
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `page` (integer, optional): Page number (default: 1, minimum: 1)
+- `limit` (integer, optional): Items per page (default: 10, maximum: 100)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "username": "string",
+      "email": "string",
+      "role": "string",
+      "is_admin": boolean,
+      "is_active": boolean,
+      ...
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+
+---
 
 ### GET /api/admin/users/:user_id
-Retrieves detailed profile for any user.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Response:** 200 OK
-  - Returns user object with full details
-- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Retrieves detailed profile for any user. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "email": "string",
+  "role": "string",
+  "is_admin": boolean,
+  "is_active": boolean,
+  "avatar_url": "string | null",
+  "bio": "string | null",
+  "theme": "string",
+  "notification_enabled": boolean,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### PUT /api/admin/users/:user_id
-Manually updates user account details.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Request Body:**
-  - `username` (string, optional): Username
-  - `email` (string, optional): Email address
-  - `bio` (string, optional): Biography
-  - `theme` (string, optional): Theme preference
-  - `avatar_url` (string, optional): Avatar URL
-  - `is_admin` (boolean, optional): Admin status
-  - `is_active` (boolean, optional): Account active status
-- **Response:** 200 OK
-  - Returns updated user object
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Manually updates user account details. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "username": "string (optional, min: 3, max: 255 characters)",
+  "email": "string (optional, valid email format)",
+  "bio": "string (optional)",
+  "theme": "string (optional)",
+  "avatar_url": "string (optional)",
+  "is_admin": boolean (optional),
+  "is_active": boolean (optional)
+}
+```
+
+**Fields:**
+- `username` (string, optional): Username (3-255 characters)
+- `email` (string, optional): Email address (valid email format)
+- `bio` (string, optional): Biography
+- `theme` (string, optional): Theme preference
+- `avatar_url` (string, optional): Avatar URL
+- `is_admin` (boolean, optional): Admin status (if changed, role will also update)
+- `is_active` (boolean, optional): Account active status
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "email": "string",
+  "role": "string",
+  "is_admin": boolean,
+  ...
+}
+```
+
+**Note:** If `is_admin` is updated, the `role` field will automatically be set to `"admin"` if `is_admin` is true, or `"user"` if false.
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### DELETE /api/admin/users/:user_id
-Deletes a user account.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Response:** 204 No Content
-- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Deletes a user account. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### PATCH /api/admin/users/:user_id/status
-Activates or deactivates a user account.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Request Body:**
-  - `is_active` (boolean, required): Account active status
-- **Response:** 200 OK
-  - Returns updated user object
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Activates or deactivates a user account. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "is_active": boolean (required)
+}
+```
+
+**Fields:**
+- `is_active` (boolean, required): Account active status
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "is_active": boolean,
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### PATCH /api/admin/users/:user_id/admin
-Promotes or demotes a user to/from Admin role.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Request Body:**
-  - `is_admin` (boolean, required): Admin status
-- **Response:** 200 OK
-  - Returns updated user object
-- **Errors:** 400 (Validation error), 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Promotes or demotes a user to/from Admin role. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "is_admin": boolean (required)
+}
+```
+
+**Fields:**
+- `is_admin` (boolean, required): Admin status
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "username": "string",
+  "role": "string",
+  "is_admin": boolean,
+  ...
+}
+```
+
+**Note:** Setting `is_admin` to `true` will set `role` to `"admin"`. Setting it to `false` will set `role` to `"user"`.
+
+**Error Responses:**
+- `400 Bad Request`: Validation error
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### GET /api/admin/tasks
-Searches and lists all tasks in the entire system (admin view).
-- **Query Parameters:**
-  - `status` (string, optional): Filter by status
-  - `statuses[]` (array, optional): Filter by multiple statuses
-  - `priority` (string, optional): Filter by priority
-  - `priorities[]` (array, optional): Filter by multiple priorities
-  - `search` (string, optional): Search in title and description
-  - `created_from` (datetime, optional): Filter tasks created after this date
-  - `created_to` (datetime, optional): Filter tasks created before this date
-  - `due_from` (datetime, optional): Filter tasks due after this date
-  - `due_to` (datetime, optional): Filter tasks due before this date
-  - `user_id` (uuid, optional): Filter by task owner
-  - `page` (integer, optional): Page number (default: 1)
-  - `limit` (integer, optional): Items per page (default: 20)
-- **Response:** 200 OK
-  - Returns paginated list of all tasks
-- **Errors:** 401 (Unauthorized), 403 (Not an admin)
+Searches and lists all tasks in the entire system. Admin only.
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `status` (string, optional): Filter by single status
+- `statuses[]` (array of strings, optional): Filter by multiple statuses
+- `priority` (string, optional): Filter by single priority
+- `priorities[]` (array of strings, optional): Filter by multiple priorities
+- `search` (string, optional): Search in title and description
+- `created_from` (datetime, optional): Filter tasks created after this date
+- `created_to` (datetime, optional): Filter tasks created before this date
+- `due_from` (datetime, optional): Filter tasks due after this date
+- `due_to` (datetime, optional): Filter tasks due before this date
+- `user_id` (uuid, optional): Filter by task owner
+- `page` (integer, optional): Page number (default: 1)
+- `limit` (integer, optional): Items per page (default: 10)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "title": "string",
+      ...
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+
+---
 
 ### GET /api/admin/users/:user_id/tasks
-Lists all tasks belonging to a specific user.
-- **Path Parameters:**
-  - `user_id` (uuid, required): User ID
-- **Query Parameters:**
-  - `status` (string, optional): Filter by status
-  - `statuses[]` (array, optional): Filter by multiple statuses
-  - `priority` (string, optional): Filter by priority
-  - `priorities[]` (array, optional): Filter by multiple priorities
-  - `search` (string, optional): Search in title and description
-  - `created_from` (datetime, optional): Filter tasks created after this date
-  - `created_to` (datetime, optional): Filter tasks created before this date
-  - `due_from` (datetime, optional): Filter tasks due after this date
-  - `due_to` (datetime, optional): Filter tasks due before this date
-  - `page` (integer, optional): Page number (default: 1)
-  - `limit` (integer, optional): Items per page (default: 20)
-- **Response:** 200 OK
-  - Returns paginated list of user's tasks
-- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (User not found)
+Lists all tasks belonging to a specific user. Admin only.
+
+**Path Parameters:**
+- `user_id` (uuid, required): User ID
+
+**Query Parameters:**
+- `status` (string, optional): Filter by single status
+- `statuses[]` (array of strings, optional): Filter by multiple statuses
+- `priority` (string, optional): Filter by single priority
+- `priorities[]` (array of strings, optional): Filter by multiple priorities
+- `search` (string, optional): Search in title and description
+- `created_from` (datetime, optional): Filter tasks created after this date
+- `created_to` (datetime, optional): Filter tasks created before this date
+- `due_from` (datetime, optional): Filter tasks due after this date
+- `due_to` (datetime, optional): Filter tasks due before this date
+- `page` (integer, optional): Page number (default: 1)
+- `limit` (integer, optional): Items per page (default: 10)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "title": "string",
+      ...
+    }
+  ],
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: User not found
+
+---
 
 ### DELETE /api/admin/tasks/:task_id
-Force deletes any task in the system (admin override).
-- **Path Parameters:**
-  - `task_id` (uuid, required): Task ID
-- **Response:** 204 No Content
-- **Errors:** 401 (Unauthorized), 403 (Not an admin), 404 (Task not found)
+Force deletes any task in the system. Admin only.
+
+**Path Parameters:**
+- `task_id` (uuid, required): Task ID
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `204 No Content` (empty body)
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Not an admin user
+- `404 Not Found`: Task not found
 
 ---
 
@@ -412,39 +1342,139 @@ Force deletes any task in the system (admin override).
 
 ### Authentication
 Requires authentication via Bearer token:
-- As a query parameter: `?token=<jwt_token>`
-- Or in the sub-protocol header
+- **Query Parameter:** `?token=<jwt_token>`
+- Or in the WebSocket sub-protocol header
+
+### Connection
+**URL:** `ws://your-domain.com/ws?token=<jwt_token>`
 
 ### Message Types
-The WebSocket supports the following message types:
 
-1. **Chat Messages** (`chat_message`)
-   - Real-time message delivery
-   - Contains: `id`, `sender_id`, `receiver_id`, `content`, `image_url`, `created_at`
+#### 1. Chat Messages (`chat_message`)
+Real-time message delivery.
 
-2. **Typing Indicators** (`typing_indicator`)
-   - Shows when a user is typing
-   - Contains: `user_id`, `is_typing`
+**Client → Server:** N/A (messages sent via REST API)
 
-3. **User Status Updates** (`user_status`)
-   - Online/offline status changes
-   - Contains: `user_id`, `status` (online/offline)
-
-4. **Heartbeats** (`ping`/`pong`)
-   - Connection keep-alive mechanism
-   - Server sends `ping`, client responds with `pong`
-
-5. **Error Messages** (`error`)
-   - Error notifications
-   - Contains: `message`, `code`
-
-### Client Message Format
+**Server → Client:**
 ```json
 {
-  "type": "chat_message" | "typing_indicator" | "user_status",
-  "payload": { ... }
+  "type": "chat_message",
+  "payload": {
+    "id": "uuid",
+    "sender_id": "uuid",
+    "receiver_id": "uuid",
+    "content": "string",
+    "image_url": "string | null",
+    "created_at": "datetime (RFC3339 format)"
+  }
 }
 ```
+
+#### 2. Typing Indicators (`typing_indicator`)
+Shows when a user is typing.
+
+**Client → Server:**
+```json
+{
+  "type": "typing_indicator",
+  "payload": {
+    "user_id": "uuid",
+    "is_typing": boolean
+  }
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "typing_indicator",
+  "payload": {
+    "user_id": "uuid",
+    "is_typing": boolean
+  }
+}
+```
+
+#### 3. User Status Updates (`user_status`)
+Online/offline status changes.
+
+**Server → Client:**
+```json
+{
+  "type": "user_status",
+  "payload": {
+    "user_id": "uuid",
+    "status": "online" | "offline"
+  }
+}
+```
+
+#### 4. Heartbeats (`ping`/`pong`)
+Connection keep-alive mechanism.
+
+**Server → Client:**
+```json
+{
+  "type": "ping"
+}
+```
+
+**Client → Server:**
+```json
+{
+  "type": "pong"
+}
+```
+
+#### 5. Error Messages (`error`)
+Error notifications.
+
+**Server → Client:**
+```json
+{
+  "type": "error",
+  "payload": {
+    "message": "string",
+    "code": "string"
+  }
+}
+```
+
+### Error Responses
+- Connection refused if token is missing or invalid
+- Connection closed if authentication fails
+
+---
+
+## Common Data Types
+
+### UUID Format
+All UUIDs are in standard UUID v4 format:
+```
+550e8400-e29b-41d4-a716-446655440000
+```
+
+### DateTime Format
+All datetime values use ISO 8601 format with UTC timezone:
+```
+2024-01-15T10:30:00Z
+```
+
+### Task Status Values
+- `pending`: Task is not yet started
+- `in_progress`: Task is currently being worked on
+- `completed`: Task is finished
+- `cancelled`: Task was cancelled
+
+### Task Priority Values
+- `low`: Low priority task
+- `medium`: Medium priority task (default)
+- `high`: High priority task
+- `urgent`: Urgent priority task
+
+### User Role Values
+- `user`: Regular user
+- `admin`: Administrator user
 
 ---
 
@@ -454,31 +1484,31 @@ The WebSocket supports the following message types:
 ```json
 {
   "data": [...],
-  "total": 100,
-  "page": 1,
-  "limit": 20,
-  "total_pages": 5
+  "total": integer,
+  "page": integer,
+  "limit": integer,
+  "total_pages": integer
 }
 ```
 
 ### Error Response
 ```json
 {
-  "error": "Error message description",
-  "code": "ERROR_CODE"
+  "error": "Error message description"
 }
 ```
 
 ### Authentication Response
 ```json
 {
-  "access_token": "jwt_token_string",
-  "refresh_token": "refresh_token_string",
+  "access_token": "string",
+  "refresh_token": "string",
   "user": {
     "id": "uuid",
     "username": "string",
     "email": "string",
-    "role": "user" | "admin",
+    "role": "string",
+    "is_admin": boolean,
     ...
   }
 }
@@ -489,27 +1519,64 @@ The WebSocket supports the following message types:
 ## Status Codes
 - `200 OK`: Successful request
 - `201 Created`: Resource created successfully
-- `204 No Content`: Successful deletion
+- `204 No Content`: Successful deletion (empty response body)
+- `302 Found`: Redirect (used for OAuth flows)
 - `400 Bad Request`: Validation error or invalid input
 - `401 Unauthorized`: Missing or invalid authentication token
-- `403 Forbidden`: Insufficient permissions (e.g., not an admin)
+- `403 Forbidden`: Insufficient permissions (e.g., not an admin, not task owner)
 - `404 Not Found`: Resource not found
 - `409 Conflict`: Resource conflict (e.g., user already exists)
 - `500 Internal Server Error`: Server error
 
 ---
 
-## Interactive API Documentation
-Visit `/swagger-ui` on the deployed server for interactive API documentation powered by Swagger UI.
-
----
-
-## CORS
+## CORS Configuration
 The API supports CORS for the following origins:
 - `http://localhost:3000`
 - `http://127.0.0.1:3000`
 - `http://localhost:8080`
 - Production frontend domains (configured in environment)
 
-All endpoints support the following HTTP methods:
+**Allowed HTTP Methods:**
 - GET, POST, PUT, PATCH, DELETE, OPTIONS
+
+**Allowed Headers:**
+- `Authorization`
+- `Content-Type`
+
+**Credentials:** Supported (cookies, authorization headers)
+
+---
+
+## Rate Limiting
+Currently, no rate limiting is implemented. Consider implementing rate limiting for production use.
+
+---
+
+## Interactive API Documentation
+Visit `/swagger-ui` on the deployed server for interactive API documentation powered by Swagger UI.
+
+The OpenAPI specification is available at `/api-docs/openapi.json`.
+
+---
+
+## Notes
+
+### Login Authentication
+- **Important:** Login is **email-only**. Users cannot login with username. The system validates that the email field is a valid email format.
+- Users registered via Google OAuth cannot login with email/password unless they set a password.
+
+### Admin Registration
+- Only existing admin users can register new admin accounts via `/api/admin/register`.
+- Regular registration (`/api/auth/register`) always creates regular users (`is_admin: false`).
+
+### Task Sharing
+- Tasks can be shared with multiple users.
+- Shared tasks appear in the recipient's task list.
+- Only the task owner can share, update, or delete tasks.
+- Task members can view and potentially update task status (depending on implementation).
+
+### Real-time Features
+- Server-Sent Events (SSE) are used for task and notification streams.
+- WebSocket is used for real-time messaging and typing indicators.
+- Both require authentication via Bearer token.

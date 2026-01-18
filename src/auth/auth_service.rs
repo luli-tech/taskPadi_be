@@ -84,14 +84,14 @@ impl AuthService {
             .user_repo
             .find_by_email(email)
             .await?
-            .ok_or_else(|| crate::error::AppError::Authentication("Invalid credentials".into()))?;
+            .ok_or_else(|| crate::error::AppError::Authentication("No account found with this email address".into()))?;
 
         if let Some(ref password_hash) = user.password_hash {
             if !verify_password(password, password_hash)? {
-                return Err(crate::error::AppError::Authentication("Invalid credentials".into()));
+                return Err(crate::error::AppError::Authentication("Incorrect password".into()));
             }
         } else {
-            return Err(crate::error::AppError::Authentication("Please use Google login".into()));
+            return Err(crate::error::AppError::Authentication("This account was created with Google. Please use Google login".into()));
         }
 
         let access_token = create_access_token(user.id, &user.email, &user.role, &self.jwt_secret)?;
