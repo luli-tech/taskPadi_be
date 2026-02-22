@@ -60,11 +60,11 @@ impl VideoCallRepository {
             r#"
             SELECT 
                 p.user_id,
-                u.username,
+                u.username as "username!",
                 u.avatar_url,
-                p.role,
-                p.status,
-                p.joined_at
+                p.role as "role!",
+                p.status as "status!",
+                p.joined_at as "joined_at!"
             FROM call_participants p
             JOIN users u ON p.user_id = u.id
             WHERE p.call_id = $1 AND p.status = 'joined'

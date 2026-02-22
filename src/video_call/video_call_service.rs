@@ -101,10 +101,12 @@ impl VideoCallService {
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
         // Verify user is the receiver
-        if call.receiver_id != user_id {
-            return Err(AppError::Forbidden(
-                "Only the receiver can accept the call".to_string(),
-            ));
+        if let Some(r_id) = call.receiver_id {
+            if r_id != user_id {
+                return Err(AppError::Forbidden(
+                    "Only the receiver can accept the call".to_string(),
+                ));
+            }
         }
 
         // Verify call is in a valid state
@@ -185,10 +187,12 @@ impl VideoCallService {
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
         // Verify user is the receiver
-        if call.receiver_id != user_id {
-            return Err(AppError::Forbidden(
-                "Only the receiver can reject the call".to_string(),
-            ));
+        if let Some(r_id) = call.receiver_id {
+            if r_id != user_id {
+                return Err(AppError::Forbidden(
+                    "Only the receiver can reject the call".to_string(),
+                ));
+            }
         }
 
         // Update call status to rejected
@@ -198,7 +202,7 @@ impl VideoCallService {
         let ws_message = WsMessage::CallRejected(crate::websocket::types::CallRejectedPayload {
             call_id: call.id,
             caller_id: call.caller_id,
-            receiver_id: call.receiver_id,
+            receiver_id: call.receiver_id.unwrap_or(user_id),
         });
         self.ws_manager.send_to_user(&call.caller_id, ws_message);
 
@@ -217,7 +221,7 @@ impl VideoCallService {
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
         // Verify user is part of the call
-        if call.caller_id != user_id && call.receiver_id != user_id {
+        if call.caller_id != user_id && call.receiver_id != Some(user_id) {
             return Err(AppError::Forbidden(
                 "You are not part of this call".to_string(),
             ));
@@ -237,14 +241,16 @@ impl VideoCallService {
         let other_user_id = if call.caller_id == user_id {
             call.receiver_id
         } else {
-            call.caller_id
+            Some(call.caller_id)
         };
 
         let ws_message = WsMessage::CallEnded(crate::websocket::types::CallEndedPayload {
             call_id: call.id,
             ended_by: user_id,
         });
-        self.ws_manager.send_to_user(&other_user_id, ws_message);
+        if let Some(other_id) = other_user_id {
+            self.ws_manager.send_to_user(&other_id, ws_message);
+        }
 
         Ok(call.into())
     }
@@ -278,7 +284,7 @@ impl VideoCallService {
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
         // Verify user is part of the call
-        if call.caller_id != user_id && call.receiver_id != user_id {
+        if call.caller_id != user_id && call.receiver_id != Some(user_id) {
             return Err(AppError::Forbidden(
                 "You are not part of this call".to_string(),
             ));
