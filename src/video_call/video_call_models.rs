@@ -104,6 +104,7 @@ pub struct VideoCallResponse {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub participants: Vec<CallParticipantResponse>,
+    pub media_ws_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
@@ -146,6 +147,7 @@ impl From<VideoCall> for VideoCallResponse {
             created_at: call.created_at,
             updated_at: call.updated_at,
             participants: Vec::new(), // To be filled by service
+            media_ws_path: Some(format!("/api/video-calls/{}/ws", call.id)),
         }
     }
 }
