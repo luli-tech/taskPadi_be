@@ -106,7 +106,7 @@ pub struct VideoCallResponse {
     pub participants: Vec<CallParticipantResponse>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct CallParticipantResponse {
     pub user_id: Uuid,
     pub username: String,

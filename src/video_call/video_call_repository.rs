@@ -55,22 +55,21 @@ impl VideoCallRepository {
     }
 
     pub async fn get_participants(&self, call_id: Uuid) -> Result<Vec<CallParticipantResponse>> {
-        let participants = sqlx::query_as!(
-            CallParticipantResponse,
+        let participants = sqlx::query_as::<_, CallParticipantResponse>(
             r#"
             SELECT 
                 p.user_id,
-                u.username as "username!",
+                u.username,
                 u.avatar_url,
-                p.role as "role!",
-                p.status as "status!",
-                p.joined_at as "joined_at!"
+                p.role,
+                p.status,
+                p.joined_at
             FROM call_participants p
             JOIN users u ON p.user_id = u.id
             WHERE p.call_id = $1 AND p.status = 'joined'
             "#,
-            call_id
         )
+        .bind(call_id)
         .fetch_all(&self.pool)
         .await?;
         Ok(participants)
