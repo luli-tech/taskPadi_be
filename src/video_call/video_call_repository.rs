@@ -108,7 +108,10 @@ impl VideoCallRepository {
         let call = sqlx::query_as::<_, VideoCall>(
             "SELECT * FROM video_calls
              WHERE ((caller_id = $1 AND receiver_id = $2) OR (caller_id = $2 AND receiver_id = $1))
-             AND status IN ('initiating', 'ringing', 'active')
+             AND (
+                 status = 'active'
+                 OR (status IN ('initiating', 'ringing') AND created_at > (NOW() - INTERVAL '2 minutes'))
+             )
              ORDER BY created_at DESC
              LIMIT 1",
         )
@@ -203,7 +206,10 @@ impl VideoCallRepository {
         let calls = sqlx::query_as::<_, VideoCall>(
             "SELECT * FROM video_calls
              WHERE (caller_id = $1 OR receiver_id = $1)
-             AND status IN ('initiating', 'ringing', 'active')
+             AND (
+                 status = 'active'
+                 OR (status IN ('initiating', 'ringing') AND created_at > (NOW() - INTERVAL '2 minutes'))
+             )
              ORDER BY created_at DESC",
         )
         .bind(user_id)
