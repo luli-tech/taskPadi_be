@@ -91,7 +91,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nats_client = match std::env::var("NATS_URL") {
         Ok(url) => {
             tracing::info!("Connecting to NATS at {}...", url);
-            match async_nats::connect(&url).await {
+            
+            let mut options = async_nats::ConnectOptions::new();
+            
+            // Support Synadia Cloud / NGS credentials via environment variable
+            if let Ok(creds) = std::env::var("NATS_CREDS") {
+                tracing::info!("Using NATS credentials from environment variable");
+                match options.credentials(&creds) {
+                    Ok(opts) => options = opts,
+                    Err(e) => tracing::error!("Failed to parse NATS credentials: {}", e),
+                }
+            }
+
+            match async_nats::connect_with_options(&url, options).await {
                 Ok(client) => {
                     tracing::info!("✓ Connected to NATS — media relay enabled");
                     Some(client)
