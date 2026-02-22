@@ -53,4 +53,6 @@ databases:
     databaseName: task_manager
     plan: free  # Change to paid plan for production
     region: oregon  # Same region as web service
-    ipAllowList: []  # Empty means accessible from anywhere
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: Anywhere

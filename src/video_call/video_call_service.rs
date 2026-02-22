@@ -68,6 +68,7 @@ impl VideoCallService {
                 caller_id,
                 receiver_id: r_id,
                 call_type: call_type.clone(),
+                media_ws_path: format!("/api/video-calls/{}/ws", call.id),
             });
             self.ws_manager.send_to_user(&r_id, ws_message);
 
@@ -100,11 +101,20 @@ impl VideoCallService {
             .await?
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
-        // Verify user is the receiver
+        // For direct calls: verify user is the intended receiver
+        // For group calls (receiver_id is None): any invited participant can accept
         if let Some(r_id) = call.receiver_id {
             if r_id != user_id {
                 return Err(AppError::Forbidden(
                     "Only the receiver can accept the call".to_string(),
+                ));
+            }
+        } else {
+            // Group call: verify user is a listed participant
+            let participants = self.repo.get_participants(call_id).await?;
+            if !participants.iter().any(|p| p.user_id == user_id) {
+                return Err(AppError::Forbidden(
+                    "You are not invited to this call".to_string(),
                 ));
             }
         }
@@ -124,8 +134,9 @@ impl VideoCallService {
         let ws_message = WsMessage::CallAccepted(crate::websocket::types::CallAcceptedPayload {
             call_id: call.id,
             caller_id: call.caller_id,
-            receiver_id: call.receiver_id.unwrap_or(user_id), // Simplified for now
+            receiver_id: call.receiver_id.unwrap_or(user_id),
             call_type: call.call_type.clone(),
+            media_ws_path: format!("/api/video-calls/{}/ws", call.id),
         });
         self.ws_manager.send_to_user(&call.caller_id, ws_message);
 
@@ -157,18 +168,15 @@ impl VideoCallService {
         // Add to DB
         self.repo.add_participant(call_id, new_participant_id, "participant").await?;
 
-        // Notify the new participant
+        // Notify the new participant that they have been added to the call
         let ws_message = WsMessage::CallInitiated(crate::websocket::types::CallInitiatedPayload {
             call_id,
             caller_id: inviter_id,
             receiver_id: new_participant_id,
             call_type: call.call_type.clone(),
+            media_ws_path: format!("/api/video-calls/{}/ws", call_id),
         });
         self.ws_manager.send_to_user(&new_participant_id, ws_message);
-
-        // Notify other participants
-        // (For mesh, the new guy needs to know WHO to connect to)
-        // I should probably add a ParticipantJoined message
 
         let mut response: VideoCallResponse = call.into();
         response.participants = self.repo.get_participants(call_id).await?;
@@ -186,11 +194,20 @@ impl VideoCallService {
             .await?
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
-        // Verify user is the receiver
+        // For direct calls: only the receiver can reject
+        // For group calls: any invited participant can reject their own invitation
         if let Some(r_id) = call.receiver_id {
             if r_id != user_id {
                 return Err(AppError::Forbidden(
                     "Only the receiver can reject the call".to_string(),
+                ));
+            }
+        } else {
+            // Group call: verify user is a listed participant
+            let participants = self.repo.get_participants(call_id).await?;
+            if !participants.iter().any(|p| p.user_id == user_id) {
+                return Err(AppError::Forbidden(
+                    "You are not invited to this call".to_string(),
                 ));
             }
         }
@@ -220,8 +237,13 @@ impl VideoCallService {
             .await?
             .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
 
-        // Verify user is part of the call
-        if call.caller_id != user_id && call.receiver_id != Some(user_id) {
+        // Verify user is part of the call (check caller/receiver AND participants table for group calls)
+        let participants = self.repo.get_participants(call_id).await?;
+        let is_participant = call.caller_id == user_id
+            || call.receiver_id == Some(user_id)
+            || participants.iter().any(|p| p.user_id == user_id);
+
+        if !is_participant {
             return Err(AppError::Forbidden(
                 "You are not part of this call".to_string(),
             ));
@@ -234,22 +256,25 @@ impl VideoCallService {
             None
         };
 
-        // End the call
+        // End the call in DB
         let call = self.repo.end_call(call_id, duration_seconds).await?;
 
-        // Notify the other participant
-        let other_user_id = if call.caller_id == user_id {
-            call.receiver_id
-        } else {
-            Some(call.caller_id)
-        };
-
-        let ws_message = WsMessage::CallEnded(crate::websocket::types::CallEndedPayload {
+        // Notify ALL other participants
+        let ended_msg = WsMessage::CallEnded(crate::websocket::types::CallEndedPayload {
             call_id: call.id,
             ended_by: user_id,
         });
-        if let Some(other_id) = other_user_id {
-            self.ws_manager.send_to_user(&other_id, ws_message);
+
+        for participant in &participants {
+            if participant.user_id != user_id {
+                self.ws_manager.send_to_user(&participant.user_id, ended_msg.clone());
+            }
+        }
+        // Also notify receiver if it's a direct call and they're not in the participants list
+        if let Some(other_id) = call.receiver_id {
+            if other_id != user_id && !participants.iter().any(|p| p.user_id == other_id) {
+                self.ws_manager.send_to_user(&other_id, ended_msg);
+            }
         }
 
         Ok(call.into())

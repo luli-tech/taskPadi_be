@@ -320,6 +320,11 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:call_id/reject", post(video_call_handlers::reject_call))
         .route("/:call_id/end", post(video_call_handlers::end_call))
         .route("/:call_id/participants", post(video_call_handlers::add_participant))
+        // ── videocall-rs NATS media relay WebSocket ──────────────────────────
+        // Binary WebSocket: clients send/receive raw media frames (protobuf)
+        // that are routed through NATS to all other call participants.
+        // Requires NATS_URL to be set — returns 503 otherwise.
+        .route("/:call_id/ws", get(video_call_handlers::join_call_media))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,

@@ -40,6 +40,9 @@ pub struct AppState {
     pub notification_tx: broadcast::Sender<String>,
     pub task_tx: broadcast::Sender<(uuid::Uuid, crate::task::task_models::Task)>,
     pub ws_connections: ConnectionManager,
+    /// NATS client for media relay. `None` when `NATS_URL` is not configured.
+    /// When absent, the `/video-calls/{id}/ws` media endpoint returns 503.
+    pub nats_client: Option<async_nats::Client>,
     pub user_repository: UserRepository,
     pub task_repository: TaskRepository,
     pub notification_repository: NotificationRepository,

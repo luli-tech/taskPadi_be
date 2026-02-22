@@ -86,6 +86,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create WebSocket connection manager
     let ws_connections = crate::websocket::ConnectionManager::new();
 
+    // Connect to NATS for media relay (videocall-rs architecture)
+    // App boots normally without NATS — media relay endpoint returns 503 when absent.
+    let nats_client = match std::env::var("NATS_URL") {
+        Ok(url) => {
+            tracing::info!("Connecting to NATS at {}...", url);
+            match async_nats::connect(&url).await {
+                Ok(client) => {
+                    tracing::info!("✓ Connected to NATS — media relay enabled");
+                    Some(client)
+                }
+                Err(e) => {
+                    tracing::warn!("Failed to connect to NATS: {} — media relay disabled", e);
+                    None
+                }
+            }
+        }
+        Err(_) => {
+            tracing::warn!("NATS_URL not set — media relay disabled (set NATS_URL to enable)");
+            None
+        }
+    };
+
     // Create repositories
     let user_repository = crate::user::user_repository::UserRepository::new(db.clone());
     let task_repository = crate::task::task_repository::TaskRepository::new(db.clone());
@@ -132,6 +154,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notification_tx: notification_tx.clone(),
         task_tx: task_tx.clone(),
         ws_connections,
+        nats_client,
         refresh_token_repository,
         user_repository,
         task_repository,

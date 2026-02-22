@@ -48,3 +48,6 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 
 # WebSocket and concurrent data structures
 dashmap = "6.1"
+
+# NATS pub/sub for media relay (videocall-rs architecture)
+async-nats = "0.35"
