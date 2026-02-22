@@ -17,6 +17,11 @@ use crate::{
         group_models::{Group, GroupResponse, GroupMemberResponse},
         group_dto::{CreateGroupRequest, UpdateGroupRequest, AddGroupMemberRequest},
     },
+    video_call::{
+        video_call_handlers,
+        video_call_models::{VideoCall, VideoCallResponse, CallStatus, CallParticipant, CallParticipantResponse},
+        video_call_dto::{InitiateCallRequest, AddParticipantRequest, EndCallRequest, CallHistoryParams},
+    },
     middleware::auth_middleware,
     notification::{
         notification_dto::UpdateNotificationPreferencesRequest,
@@ -99,6 +104,14 @@ use utoipa_swagger_ui::SwaggerUi;
         crate::group::group_handlers::add_group_member,
         crate::group::group_handlers::remove_group_member,
         crate::group::group_handlers::list_group_members,
+        crate::video_call::video_call_handlers::initiate_call,
+        crate::video_call::video_call_handlers::accept_call,
+        crate::video_call::video_call_handlers::reject_call,
+        crate::video_call::video_call_handlers::end_call,
+        crate::video_call::video_call_handlers::get_call,
+        crate::video_call::video_call_handlers::get_call_history,
+        crate::video_call::video_call_handlers::get_active_calls,
+        crate::video_call::video_call_handlers::add_participant,
     ),
     components(
         schemas(
@@ -122,6 +135,15 @@ use utoipa_swagger_ui::SwaggerUi;
             Group,
             GroupResponse,
             GroupMemberResponse,
+            InitiateCallRequest,
+            AddParticipantRequest,
+            EndCallRequest,
+            CallHistoryParams,
+            VideoCall,
+            CallParticipant,
+            CallParticipantResponse,
+            VideoCallResponse,
+            CallStatus,
             admin_dto::AdminUpdateUserRequest,
             admin_dto::UpdateUserStatusRequest,
             admin_dto::UpdateAdminStatusRequest,
@@ -142,7 +164,8 @@ use utoipa_swagger_ui::SwaggerUi;
         (name = "users", description = "User profile endpoints"),
         (name = "admin", description = "Admin user management endpoints"),
         (name = "messages", description = "User messaging endpoints"),
-        (name = "groups", description = "Group chat endpoints")
+        (name = "groups", description = "Group chat endpoints"),
+        (name = "video-calls", description = "Video call endpoints")
     ),
     modifiers(&SecurityAddon)
 )]
@@ -288,6 +311,20 @@ pub fn create_router(state: AppState) -> Router {
             auth_middleware,
         ));
 
+    // Video call routes
+    let video_call_routes = Router::new()
+        .route("/", post(video_call_handlers::initiate_call).get(video_call_handlers::get_call_history))
+        .route("/active", get(video_call_handlers::get_active_calls))
+        .route("/:call_id", get(video_call_handlers::get_call))
+        .route("/:call_id/accept", post(video_call_handlers::accept_call))
+        .route("/:call_id/reject", post(video_call_handlers::reject_call))
+        .route("/:call_id/end", post(video_call_handlers::end_call))
+        .route("/:call_id/participants", post(video_call_handlers::add_participant))
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
     // WebSocket route
     let ws_routes = Router::new()
         .route("/ws", get(crate::websocket::ws_handler))
@@ -304,6 +341,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/admin", admin_routes.merge(admin_register_route))
         .nest("/messages", message_routes)
         .nest("/groups", group_routes)
+        .nest("/video-calls", video_call_routes)
         .merge(ws_routes);
 
     Router::new()

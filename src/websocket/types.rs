@@ -12,6 +12,13 @@ pub enum WsMessage {
     TaskShared(TaskSharedPayload),
     TaskMemberRemoved(TaskMemberRemovedPayload),
     MessageDelivered(MessageDeliveredPayload),
+    CallInitiated(CallInitiatedPayload),
+    CallAccepted(CallAcceptedPayload),
+    CallRejected(CallRejectedPayload),
+    CallEnded(CallEndedPayload),
+    CallOffer(CallOfferPayload),
+    CallAnswer(CallAnswerPayload),
+    IceCandidate(IceCandidatePayload),
     Error(ErrorPayload),
     Ping,
     Pong,
@@ -74,6 +81,59 @@ pub struct ErrorPayload {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallInitiatedPayload {
+    pub call_id: Uuid,
+    pub caller_id: Uuid,
+    pub receiver_id: Uuid,
+    pub call_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallAcceptedPayload {
+    pub call_id: Uuid,
+    pub caller_id: Uuid,
+    pub receiver_id: Uuid,
+    pub call_type: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallRejectedPayload {
+    pub call_id: Uuid,
+    pub caller_id: Uuid,
+    pub receiver_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallEndedPayload {
+    pub call_id: Uuid,
+    pub ended_by: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallOfferPayload {
+    pub call_id: Uuid,
+    pub from_user_id: Uuid,
+    pub to_user_id: Uuid,
+    pub sdp: String, // WebRTC SDP offer
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct CallAnswerPayload {
+    pub call_id: Uuid,
+    pub from_user_id: Uuid,
+    pub to_user_id: Uuid,
+    pub sdp: String, // WebRTC SDP answer
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct IceCandidatePayload {
+    pub call_id: Uuid,
+    pub from_user_id: Uuid,
+    pub to_user_id: Uuid,
+    pub candidate: String, // ICE candidate JSON string
+}
+
 // Client-to-server messages
 #[derive(Debug, Clone, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -89,6 +149,30 @@ pub enum ClientMessage {
     },
     MarkMessageDelivered {
         message_id: Uuid,
+    },
+    AcceptCall {
+        call_id: Uuid,
+    },
+    RejectCall {
+        call_id: Uuid,
+    },
+    EndCall {
+        call_id: Uuid,
+    },
+    SendCallOffer {
+        call_id: Uuid,
+        to_user_id: Uuid,
+        sdp: String,
+    },
+    SendCallAnswer {
+        call_id: Uuid,
+        to_user_id: Uuid,
+        sdp: String,
+    },
+    SendIceCandidate {
+        call_id: Uuid,
+        to_user_id: Uuid,
+        candidate: String,
     },
     Ping,
 }

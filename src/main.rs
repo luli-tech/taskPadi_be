@@ -10,6 +10,7 @@ mod routes;
 mod state;
 mod task;
 mod user;
+mod video_call;
 mod websocket;
 
 use auth::create_oauth_client;
@@ -93,6 +94,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let refresh_token_repository = crate::auth::auth_repository::RefreshTokenRepository::new(db.clone());
     let admin_repository = crate::admin::repository::AdminRepository::new(db.clone());
     let group_repository = crate::group::group_repository::GroupRepository::new(db.clone());
+    let video_call_repository = crate::video_call::video_call_repository::VideoCallRepository::new(db.clone());
 
     // Create services
     let user_service = crate::user::user_service::UserService::new(
@@ -115,6 +117,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         group_service.clone(),
         notification_helper.clone(),
         user_repository.clone(),
+    );
+    let video_call_service = crate::video_call::video_call_service::VideoCallService::new(
+        video_call_repository.clone(),
+        ws_connections.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
 
@@ -139,6 +145,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         admin_service,
         group_repository,
         group_service,
+        video_call_repository,
+        video_call_service,
         notification_helper,
     };
 

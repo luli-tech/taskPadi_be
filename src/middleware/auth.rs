@@ -14,16 +14,17 @@ pub async fn auth_middleware(
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    let auth_header = req
-        .headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok())
-       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
-
-
-    let token = auth_header
-        .strip_prefix("Bearer ")
-       .ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?;
+    let token = if let Some(auth_header) = req.headers().get("Authorization").and_then(|h| h.to_str().ok()) {
+        auth_header.strip_prefix("Bearer ").ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+    } else {
+        // Check query parameters for token (useful for WebSockets)
+        let query = req.uri().query().unwrap_or("");
+        let token_param = query.split('&')
+            .find(|p| p.starts_with("token="))
+            .map(|p| &p[6..]);
+        
+        token_param.ok_or(AppError::Unauthorized("Invalid credentials".to_string()))?
+    };
 
 
     let claims = verify_jwt(token, &state.config.jwt_secret)?;

@@ -13,7 +13,10 @@ use crate::{
     error::{AppError, Result},
     middleware::AuthUser,
     state::AppState,
-    websocket::types::{ClientMessage, ErrorPayload, UserStatusPayload, WsMessage},
+    websocket::types::{
+        ClientMessage, ErrorPayload, UserStatusPayload, WsMessage,
+        CallOfferPayload, CallAnswerPayload, IceCandidatePayload,
+    },
 };
 
 use super::connection::WsSender;
@@ -156,6 +159,75 @@ async fn process_client_message(
         ClientMessage::MarkMessageDelivered { message_id } => {
             // Mark message as read
             let _ = state.message_service.mark_read(user_id, message_id).await;
+        }
+        ClientMessage::AcceptCall { call_id } => {
+            // Accept call via service
+            if let Err(e) = state.video_call_service.accept_call(call_id, user_id).await {
+                let error_msg = WsMessage::Error(ErrorPayload {
+                    message: e.to_string(),
+                });
+                let _ = _tx.send(error_msg);
+            }
+        }
+        ClientMessage::RejectCall { call_id } => {
+            // Reject call via service
+            if let Err(e) = state.video_call_service.reject_call(call_id, user_id).await {
+                let error_msg = WsMessage::Error(ErrorPayload {
+                    message: e.to_string(),
+                });
+                let _ = _tx.send(error_msg);
+            }
+        }
+        ClientMessage::EndCall { call_id } => {
+            // End call via service
+            if let Err(e) = state.video_call_service.end_call(call_id, user_id).await {
+                let error_msg = WsMessage::Error(ErrorPayload {
+                    message: e.to_string(),
+                });
+                let _ = _tx.send(error_msg);
+            }
+        }
+        ClientMessage::SendCallOffer {
+            call_id,
+            to_user_id,
+            sdp,
+        } => {
+            // Forward WebRTC offer to recipient
+            let offer_msg = WsMessage::CallOffer(CallOfferPayload {
+                call_id,
+                from_user_id: user_id,
+                to_user_id,
+                sdp,
+            });
+            state.ws_connections.send_to_user(&to_user_id, offer_msg);
+        }
+        ClientMessage::SendCallAnswer {
+            call_id,
+            to_user_id,
+            sdp,
+        } => {
+            // Forward WebRTC answer to recipient
+            let answer_msg = WsMessage::CallAnswer(CallAnswerPayload {
+                call_id,
+                from_user_id: user_id,
+                to_user_id,
+                sdp,
+            });
+            state.ws_connections.send_to_user(&to_user_id, answer_msg);
+        }
+        ClientMessage::SendIceCandidate {
+            call_id,
+            to_user_id,
+            candidate,
+        } => {
+            // Forward ICE candidate to recipient
+            let ice_msg = WsMessage::IceCandidate(IceCandidatePayload {
+                call_id,
+                from_user_id: user_id,
+                to_user_id,
+                candidate,
+            });
+            state.ws_connections.send_to_user(&to_user_id, ice_msg);
         }
         ClientMessage::Ping => {
             let _ = _tx.send(WsMessage::Pong);

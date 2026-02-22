@@ -1271,6 +1271,250 @@ Removes a user from the group. Only the group creator can remove members. The cr
 
 ---
 
+## Video Call Endpoints (Base: /api/video-calls)
+
+The video call system allows users to initiate, accept, reject, and end video calls with other users. WebRTC signaling (SDP offers, answers, and ICE candidates) is handled through WebSocket connections for real-time communication.
+
+### POST /api/video-calls
+Initiates a new video call with another user.
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Request Body (JSON):**
+```json
+{
+  "receiver_id": "uuid (required)"
+}
+```
+
+**Fields:**
+- `receiver_id` (uuid, required): The ID of the user to call
+
+**Response:** `201 Created`
+```json
+{
+  "id": "uuid",
+  "caller_id": "uuid",
+  "receiver_id": "uuid",
+  "status": "initiating",
+  "started_at": "datetime | null",
+  "ended_at": "datetime | null",
+  "duration_seconds": "integer | null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Status Values:**
+- `initiating`: Call is being initiated
+- `ringing`: Receiver is being notified
+- `active`: Call is ongoing
+- `ended`: Call has ended normally
+- `missed`: Call was not answered
+- `rejected`: Call was rejected by receiver
+
+**Error Responses:**
+- `400 Bad Request`: Invalid receiver ID, user cannot call themselves, or active call already exists
+- `401 Unauthorized`: Missing or invalid authentication token
+- `404 Not Found`: Receiver user not found
+
+---
+
+### POST /api/video-calls/{call_id}/accept
+Accepts an incoming video call.
+
+**Path Parameters:**
+- `call_id` (uuid, required): The ID of the call to accept
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "caller_id": "uuid",
+  "receiver_id": "uuid",
+  "status": "active",
+  "started_at": "datetime",
+  "ended_at": "datetime | null",
+  "duration_seconds": "integer | null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request`: Call is not in a valid state to be accepted
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the receiver can accept the call
+- `404 Not Found`: Call not found
+
+---
+
+### POST /api/video-calls/{call_id}/reject
+Rejects an incoming video call.
+
+**Path Parameters:**
+- `call_id` (uuid, required): The ID of the call to reject
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "caller_id": "uuid",
+  "receiver_id": "uuid",
+  "status": "rejected",
+  "started_at": "datetime | null",
+  "ended_at": "datetime",
+  "duration_seconds": "integer | null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: Only the receiver can reject the call
+- `404 Not Found`: Call not found
+
+---
+
+### POST /api/video-calls/{call_id}/end
+Ends an active video call.
+
+**Path Parameters:**
+- `call_id` (uuid, required): The ID of the call to end
+
+**Query Parameters:** None
+
+**Request Body:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "caller_id": "uuid",
+  "receiver_id": "uuid",
+  "status": "ended",
+  "started_at": "datetime",
+  "ended_at": "datetime",
+  "duration_seconds": 120,
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: User is not part of this call
+- `404 Not Found`: Call not found
+
+---
+
+### GET /api/video-calls/{call_id}
+Retrieves details of a specific video call.
+
+**Path Parameters:**
+- `call_id` (uuid, required): The ID of the call
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+{
+  "id": "uuid",
+  "caller_id": "uuid",
+  "receiver_id": "uuid",
+  "status": "active",
+  "started_at": "datetime",
+  "ended_at": "datetime | null",
+  "duration_seconds": "integer | null",
+  "created_at": "datetime",
+  "updated_at": "datetime"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+- `403 Forbidden`: User is not part of this call
+- `404 Not Found`: Call not found
+
+---
+
+### GET /api/video-calls
+Retrieves the call history for the authenticated user.
+
+**Path Parameters:** None
+
+**Query Parameters:**
+- `limit` (integer, optional): Number of calls to return (default: 20, max: 100)
+- `offset` (integer, optional): Number of calls to skip for pagination (default: 0)
+
+**Response:** `200 OK`
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "caller_id": "uuid",
+      "receiver_id": "uuid",
+      "status": "ended",
+      "started_at": "datetime",
+      "ended_at": "datetime",
+      "duration_seconds": 120,
+      "created_at": "datetime",
+      "updated_at": "datetime"
+    }
+  ],
+  "total": 50,
+  "limit": 20,
+  "offset": 0,
+  "total_pages": 3
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
+
+### GET /api/video-calls/active
+Retrieves all active calls for the authenticated user (calls with status: initiating, ringing, or active).
+
+**Path Parameters:** None
+
+**Query Parameters:** None
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "uuid",
+    "caller_id": "uuid",
+    "receiver_id": "uuid",
+    "status": "active",
+    "started_at": "datetime",
+    "ended_at": "datetime | null",
+    "duration_seconds": "integer | null",
+    "created_at": "datetime",
+    "updated_at": "datetime"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token
+
+---
+
 ## Notification Endpoints (Base: /api/notifications)
 **All endpoints require authentication.**
 
@@ -1868,6 +2112,181 @@ Error notifications.
 }
 ```
 
+#### 6. Video Call Signaling
+
+##### Call Initiated (`call_initiated`)
+Sent to the receiver when a call is initiated.
+
+**Server → Client:**
+```json
+{
+  "type": "call_initiated",
+  "payload": {
+    "call_id": "uuid",
+    "caller_id": "uuid",
+    "receiver_id": "uuid"
+  }
+}
+```
+
+##### Call Accepted (`call_accepted`)
+Sent to the caller when the receiver accepts the call.
+
+**Server → Client:**
+```json
+{
+  "type": "call_accepted",
+  "payload": {
+    "call_id": "uuid",
+    "caller_id": "uuid",
+    "receiver_id": "uuid"
+  }
+}
+```
+
+##### Call Rejected (`call_rejected`)
+Sent to the caller when the receiver rejects the call.
+
+**Server → Client:**
+```json
+{
+  "type": "call_rejected",
+  "payload": {
+    "call_id": "uuid",
+    "caller_id": "uuid",
+    "receiver_id": "uuid"
+  }
+}
+```
+
+##### Call Ended (`call_ended`)
+Sent to both participants when a call ends.
+
+**Server → Client:**
+```json
+{
+  "type": "call_ended",
+  "payload": {
+    "call_id": "uuid",
+    "ended_by": "uuid"
+  }
+}
+```
+
+##### WebRTC Offer (`call_offer`)
+WebRTC SDP offer for establishing peer connection.
+
+**Client → Server:**
+```json
+{
+  "type": "send_call_offer",
+  "payload": {
+    "call_id": "uuid",
+    "to_user_id": "uuid",
+    "sdp": "string"
+  }
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "call_offer",
+  "payload": {
+    "call_id": "uuid",
+    "from_user_id": "uuid",
+    "to_user_id": "uuid",
+    "sdp": "string"
+  }
+}
+```
+
+##### WebRTC Answer (`call_answer`)
+WebRTC SDP answer for establishing peer connection.
+
+**Client → Server:**
+```json
+{
+  "type": "send_call_answer",
+  "payload": {
+    "call_id": "uuid",
+    "to_user_id": "uuid",
+    "sdp": "string"
+  }
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "call_answer",
+  "payload": {
+    "call_id": "uuid",
+    "from_user_id": "uuid",
+    "to_user_id": "uuid",
+    "sdp": "string"
+  }
+}
+```
+
+##### ICE Candidate (`ice_candidate`)
+ICE candidate exchange for NAT traversal.
+
+**Client → Server:**
+```json
+{
+  "type": "send_ice_candidate",
+  "payload": {
+    "call_id": "uuid",
+    "to_user_id": "uuid",
+    "candidate": "string"
+  }
+}
+```
+
+**Server → Client:**
+```json
+{
+  "type": "ice_candidate",
+  "payload": {
+    "call_id": "uuid",
+    "from_user_id": "uuid",
+    "to_user_id": "uuid",
+    "candidate": "string"
+  }
+}
+```
+
+##### Accept/Reject/End Call Actions
+
+**Client → Server:**
+```json
+{
+  "type": "accept_call",
+  "payload": {
+    "call_id": "uuid"
+  }
+}
+```
+
+```json
+{
+  "type": "reject_call",
+  "payload": {
+    "call_id": "uuid"
+  }
+}
+```
+
+```json
+{
+  "type": "end_call",
+  "payload": {
+    "call_id": "uuid"
+  }
+}
+```
+
 ### Error Responses
 - Connection refused if token is missing or invalid
 - Connection closed if authentication fails
@@ -2009,20 +2428,18 @@ The OpenAPI specification is available at `/api-docs/openapi.json`.
 
 ### Real-time Features
 - Server-Sent Events (SSE) are used for task and notification streams.
-- WebSocket is used for real-time messaging and typing indicators.
+- WebSocket is used for real-time messaging, typing indicators, and video call signaling.
 - Both require authentication via Bearer token.
 
-### Group Chat
-- Groups are private and only accessible to members.
-- Only the group creator can:
-  - Update group information (name, description, avatar)
-  - Delete the group
-  - Add members to the group
-  - Remove members from the group
-- Group messages are sent to all group members via WebSocket.
-- All group members receive notifications when a new message is sent.
-- The group creator cannot be removed from the group.
-- When sending a message, use `group_id` for group messages and `receiver_id` for 1-on-1 messages.
+### Video Calls
+- Video calls use WebRTC for peer-to-peer communication.
+- The server handles signaling (SDP offers/answers and ICE candidates) through WebSocket.
+- Call statuses are tracked: `initiating`, `ringing`, `active`, `ended`, `missed`, `rejected`.
+- Only one active call can exist between two users at a time.
+- Call duration is automatically calculated when a call ends.
+- WebRTC signaling messages (offers, answers, ICE candidates) are forwarded directly between participants via WebSocket.
+- The receiver must accept the call via API endpoint or WebSocket message before the call becomes active.
+- Either participant can end the call at any time.
 
 ### Group Chat
 - Groups are private and only accessible to members.

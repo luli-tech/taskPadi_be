@@ -22,6 +22,10 @@ use crate::{
         group_repository::GroupRepository,
         group_service::GroupService,
     },
+    video_call::{
+        video_call_repository::VideoCallRepository,
+        video_call_service::VideoCallService,
+    },
     notification::NotificationHelper,
 };
 
@@ -53,6 +57,9 @@ pub struct AppState {
     #[allow(dead_code)]
     pub group_repository: GroupRepository,
     pub group_service: GroupService,
+    #[allow(dead_code)]
+    pub video_call_repository: VideoCallRepository,
+    pub video_call_service: VideoCallService,
     pub notification_helper: NotificationHelper,
 }
 
