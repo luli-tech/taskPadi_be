@@ -88,48 +88,45 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Connect to NATS for media relay (videocall-rs architecture)
     // App boots normally without NATS — media relay endpoint returns 503 when absent.
-    let nats_client = match std::env::var("NATS_URL") {
-        Ok(url) => {
-            tracing::info!("Connecting to NATS at {}...", url);
-            
-            let options = if let Ok(creds) = std::env::var("NATS_CREDS") {
-                tracing::info!("Using NATS credentials from environment variable");
-                
-                // Un-escape newlines that cloud providers like Render might have escaped into literal \n
-                let clean_creds = creds.replace("\\n", "\n").replace("\\r", "\r").trim_matches('"').to_string();
+    let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "tls://connect.ngs.global".to_string());
+    tracing::info!("Connecting to NATS at {}...", nats_url);
+    
+    let hardcoded_creds = r#"-----BEGIN NATS USER JWT-----
+eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJPWlY3STRPTFRaN1pZTk80UVRCU1VSQVJXNUgzR09HQ1hXREJGUkNUR0hVUUVJUU1BRDNRIiwiaWF0IjoxNzcxNzk4MDc5LCJpc3MiOiJBRFlYWjY3WDVDWEY2M0xDSlBBVUZNSEYzNjcyR0ZGRkFYSEVBR0FGU1IzNVg3STZMSjVWUVBaUiIsIm5hbWUiOiJDTEkiLCJzdWIiOiJVQVBVTERVSklNS1dPR0VSNkg2RTcyUlUzN0VOUkxZRTY1NkVZUVRZMldIS0dEVlpTNkhNNEVGVCIsIm5hdHMiOnsicHViIjp7fSwic3ViIjp7fSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwiaXNzdWVyX2FjY291bnQiOiJBQlpPVEpXU05DQU1RNllVUDRMRE40VEhIRVBLRlpRREFWVUhXV1U0QVFGVUg3WjZVTzZFUkxNVyIsInR5cGUiOiJ1c2VyIiwiY29kZSI6Mn19.YWsYxSnKRS8St4pFeupcwUs6Bii4X3hj40BKgHoRX5BnosLWjPPAXfAbshRPyyRAPXvSSVor6hBJ1MbhBgyzCw
+------END NATS USER JWT------
 
-                // Create a temporary file uniquely named to prevent race conditions during startup tests
-                let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
-                if let Err(e) = std::fs::write(&path, &clean_creds) {
-                    tracing::error!("Failed to write temp credentials file: {}", e);
-                }
-                
-                let creds_path = path.to_string_lossy().to_string();
+************************* IMPORTANT *************************
+NKEY Seed printed below can be used to sign and prove identity.
+NKEYs are sensitive and should be treated as secrets.
 
-                match async_nats::ConnectOptions::new().credentials(&creds_path) {
-                    Ok(opts) => opts,
-                    Err(e) => {
-                        tracing::error!("Failed to parse NATS credentials: {}", e);
-                        async_nats::ConnectOptions::new()
-                    }
-                }
-            } else {
-                async_nats::ConnectOptions::new()
-            };
+-----BEGIN USER NKEY SEED-----
+SUADYN3HVZY4CEGZAIMARZBF6XHSZASLGJPYLSDW4NXSFBPHNF4RIW3XJU
+------END USER NKEY SEED------
 
-            match async_nats::connect_with_options(&url, options).await {
-                Ok(client) => {
-                    tracing::info!("✓ Connected to NATS — media relay enabled");
-                    Some(client)
-                }
-                Err(e) => {
-                    tracing::warn!("Failed to connect to NATS: {} — media relay disabled", e);
-                    None
-                }
-            }
+*************************************************************"#;
+
+    let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
+    if let Err(e) = std::fs::write(&path, hardcoded_creds) {
+        tracing::error!("Failed to write temp credentials file: {}", e);
+    }
+    
+    let creds_path = path.to_string_lossy().to_string();
+
+    let options = match async_nats::ConnectOptions::new().credentials(&creds_path) {
+        Ok(opts) => opts,
+        Err(e) => {
+            tracing::error!("Failed to parse NATS credentials: {}", e);
+            async_nats::ConnectOptions::new()
         }
-        Err(_) => {
-            tracing::warn!("NATS_URL not set — media relay disabled (set NATS_URL to enable)");
+    };
+
+    let nats_client = match async_nats::connect_with_options(&nats_url, options).await {
+        Ok(client) => {
+            tracing::info!("✓ Connected to NATS — media relay enabled");
+            Some(client)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to connect to NATS: {} — media relay disabled", e);
             None
         }
     };
