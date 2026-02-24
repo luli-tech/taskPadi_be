@@ -95,15 +95,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let options = if let Ok(creds) = std::env::var("NATS_CREDS") {
                 tracing::info!("Using NATS credentials from environment variable");
                 
+                // Clean up escaped newlines or quotes which often happen in cloud dashboards like Render
+                let parsed_creds = creds.replace("\\n", "\n").replace("\\r", "\r").trim_matches('"').to_string();
+                
                 // Write credentials to a temporary file if it's the raw contents
-                let creds_path = if creds.contains("BEGIN NATS USER JWT") {
+                let creds_path = if parsed_creds.contains("BEGIN NATS USER JWT") {
                     let path = std::env::temp_dir().join("nats.creds");
-                    if let Err(e) = std::fs::write(&path, &creds) {
+                    if let Err(e) = std::fs::write(&path, &parsed_creds) {
                         tracing::error!("Failed to write temp credentials file: {}", e);
                     }
                     path.to_string_lossy().to_string()
                 } else {
-                    creds
+                    parsed_creds
                 };
 
                 match async_nats::ConnectOptions::new().credentials(&creds_path) {
