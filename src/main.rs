@@ -94,7 +94,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             let options = if let Ok(creds) = std::env::var("NATS_CREDS") {
                 tracing::info!("Using NATS credentials from environment variable");
-                match async_nats::ConnectOptions::new().credentials(&creds) {
+                
+                // Write credentials to a temporary file if it's the raw contents
+                let creds_path = if creds.contains("BEGIN NATS USER JWT") {
+                    let path = std::env::temp_dir().join("nats.creds");
+                    if let Err(e) = std::fs::write(&path, &creds) {
+                        tracing::error!("Failed to write temp credentials file: {}", e);
+                    }
+                    path.to_string_lossy().to_string()
+                } else {
+                    creds
+                };
+
+                match async_nats::ConnectOptions::new().credentials(&creds_path) {
                     Ok(opts) => opts,
                     Err(e) => {
                         tracing::error!("Failed to parse NATS credentials: {}", e);
