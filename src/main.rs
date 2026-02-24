@@ -95,34 +95,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let options = if let Ok(creds) = std::env::var("NATS_CREDS") {
                 tracing::info!("Using NATS credentials from environment variable");
                 
-                // Clean up escaped newlines or quotes which often happen in cloud dashboards like Render
-                let parsed_creds = creds.replace("\\n", " ").replace("\\r", " ").trim_matches('"').to_string();
-                
-                // Reconstruct the file perfectly by finding the exact tokens, ignoring space-mangling
-                let mut clean_creds = parsed_creds.clone();
-                if let (Some(jwt_start), Some(seed_start)) = (parsed_creds.find("eyJ"), parsed_creds.find("SU")) {
-                    let jwt: String = parsed_creds[jwt_start..].chars().take_while(|c| c.is_alphanumeric() || *c == '-' || *c == '.' || *c == '_').collect();
-                    let seed: String = parsed_creds[seed_start..].chars().take_while(|c| c.is_alphanumeric()).collect();
-                    
-                    if !jwt.is_empty() && !seed.is_empty() {
-                        clean_creds = format!(
-                            "-----BEGIN NATS USER JWT-----\n{}\n------END NATS USER JWT------\n\n************************* IMPORTANT *************************\nNKEY Seed printed below can be used to sign and prove identity.\nNKEYs are sensitive and should be treated as secrets.\n\n-----BEGIN USER NKEY SEED-----\n{}\n------END USER NKEY SEED------\n",
-                            jwt, seed
-                        );
-                        tracing::info!("Successfully reconstructed NATS credentials format");
-                    }
-                }
+                // Un-escape newlines that cloud providers like Render might have escaped into literal \n
+                let clean_creds = creds.replace("\\n", "\n").replace("\\r", "\r").trim_matches('"').to_string();
 
-                // Write credentials to a temporary file if it's the raw contents
-                let creds_path = if clean_creds.contains("BEGIN NATS USER JWT") {
-                    let path = std::env::temp_dir().join("nats.creds");
-                    if let Err(e) = std::fs::write(&path, &clean_creds) {
-                        tracing::error!("Failed to write temp credentials file: {}", e);
-                    }
-                    path.to_string_lossy().to_string()
-                } else {
-                    clean_creds
-                };
+                // Create a temporary file uniquely named to prevent race conditions during startup tests
+                let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
+                if let Err(e) = std::fs::write(&path, &clean_creds) {
+                    tracing::error!("Failed to write temp credentials file: {}", e);
+                }
+                
+                let creds_path = path.to_string_lossy().to_string();
 
                 match async_nats::ConnectOptions::new().credentials(&creds_path) {
                     Ok(opts) => opts,
