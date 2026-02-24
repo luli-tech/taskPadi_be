@@ -106,7 +106,7 @@ SUADYN3HVZY4CEGZAIMARZBF6XHSZASLGJPYLSDW4NXSFBPHNF4RIW3XJU
 *************************************************************"#;
 
     let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
-    if let Err(e) = std::fs::write(&path, hardcoded_creds) {
+    if let Err(e) = std::fs::write(&path, hardcoded_creds.replace("\r", "")) {
         tracing::error!("Failed to write temp credentials file: {}", e);
     }
     
