@@ -56,7 +56,7 @@ SUADYN3HVZY4CEGZAIMARZBF6XHSZASLGJPYLSDW4NXSFBPHNF4RIW3XJU
     tokio::spawn(async move {
         println!("👂 Worker subscriber starting...");
         
-        let mut sub = match nats_subscriber.subscribe("events.messages".into()).await {
+        let mut sub = match nats_subscriber.subscribe("events.messages").await {
             Ok(s) => s,
             Err(e) => {
                 eprintln!("❌ Failed to subscribe: {}", e);
@@ -100,7 +100,7 @@ async fn publish(
 
     let result = state
         .nats
-        .publish("events.messages".into(), data.into())
+        .publish("events.messages", data.into())
         .await;
 
     match result {
@@ -120,7 +120,7 @@ async fn publish_js(
     
     // Publish using JetStream
     let result = js
-        .publish("events.messages".into(), data.into())
+        .publish("events.messages", data.into())
         .await;
 
     match result {
