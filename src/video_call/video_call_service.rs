@@ -94,8 +94,8 @@ impl VideoCallService {
             });
             self.ws_manager.send_to_user(&r_id, ws_message);
 
-            // Pre-add receiver as participant (status ringing)
-            let _ = self.repo.add_participant(call.id, r_id, "participant").await;
+            // Pre-add receiver as participant (status invited/ringing)
+            let _ = self.repo.add_participant(call.id, r_id, "participant", "invited").await;
         }
 
         // For group calls: notify all members
@@ -123,8 +123,8 @@ impl VideoCallService {
                 });
                 self.ws_manager.send_to_user(&member.user_id, ws_message);
 
-                // Pre-add member as participant
-                let _ = self.repo.add_participant(call.id, member.user_id, "participant").await;
+                // Pre-add member as participant (status invited)
+                let _ = self.repo.add_participant(call.id, member.user_id, "participant", "invited").await;
             }
         }
 
@@ -225,8 +225,8 @@ impl VideoCallService {
             return Err(AppError::Forbidden("Only active participants can add others".to_string()));
         }
 
-        // Add to DB
-        self.repo.add_participant(call_id, new_participant_id, "participant").await?;
+        // Add to DB (status invited)
+        self.repo.add_participant(call_id, new_participant_id, "participant", "invited").await?;
 
         // Notify the new participant that they have been added to the call
         let inviter_info = self

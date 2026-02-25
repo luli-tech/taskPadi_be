@@ -52,3 +52,4 @@ dashmap = "6.1"
 
 # Redis pub/sub for media relay (videocall-rs architecture)
 redis = { version = "0.27", features = ["tokio-comp", "async-std-comp"] }
+async-nats = "0.46.0"

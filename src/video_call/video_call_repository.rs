@@ -34,21 +34,22 @@ impl VideoCallRepository {
         .fetch_one(&self.pool)
         .await?;
 
-        // Add caller as first participant
-        self.add_participant(call.id, caller_id, "caller").await?;
+        // Add caller as first participant (status joined)
+        self.add_participant(call.id, caller_id, "caller", "joined").await?;
 
         Ok(call)
     }
 
-    pub async fn add_participant(&self, call_id: Uuid, user_id: Uuid, role: &str) -> Result<()> {
+    pub async fn add_participant(&self, call_id: Uuid, user_id: Uuid, role: &str, status: &str) -> Result<()> {
         sqlx::query(
             "INSERT INTO call_participants (call_id, user_id, role, status)
-             VALUES ($1, $2, $3, 'joined')
-             ON CONFLICT (call_id, user_id) DO UPDATE SET status = 'joined', left_at = NULL",
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (call_id, user_id) DO UPDATE SET status = $4, left_at = NULL",
         )
         .bind(call_id)
         .bind(user_id)
         .bind(role)
+        .bind(status)
         .execute(&self.pool)
         .await?;
         Ok(())
