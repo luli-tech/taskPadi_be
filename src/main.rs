@@ -88,12 +88,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Connect to Redis for media relay (videocall-rs architecture)
     // App boots normally without Redis — media relay endpoint returns 503 when absent.
-    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+    let redis_url = std::env::var("REDIS_URL")
+    .or_else(|_| std::env::var("RENDER_REDIS_URL"))
+    .unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+tracing::info!("Using Redis URL: {}", redis_url);
     tracing::info!("Connecting to Redis at {}...", redis_url);
     
     let redis_client = match redis::Client::open(redis_url.clone()) {
         Ok(client) => {
             tracing::info!("✓ Connected to Redis successfully!");
+            // Verify connection with a ping
+            match client.get_async_connection().await {
+                Ok(mut conn) => {
+                    match redis::cmd("PING").query_async::<_, ()>(&mut conn).await {
+                        Ok(_) => tracing::info!("✅ Redis ping successful – Redis is up and running"),
+                        Err(ping_err) => tracing::error!("❌ Redis ping failed: {}", ping_err),
+                    }
+                }
+                Err(conn_err) => tracing::error!("❌ Failed to obtain async Redis connection: {}", conn_err),
+            }
             Some(client)
         }
         Err(e) => {
@@ -129,7 +142,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let message_service = crate::message::message_service::MessageService::new(
         message_repository.clone(),
         ws_connections.clone(),
-        notification_repository.clone(),
         group_service.clone(),
         notification_helper.clone(),
         user_repository.clone(),

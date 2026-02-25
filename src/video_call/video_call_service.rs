@@ -129,15 +129,13 @@ impl VideoCallService {
         }
 
         // Update status to ringing
-        let call_clone = self.repo.clone();
-        let call_id_clone = call.id;
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            let _ = call_clone.update_status(call_id_clone, "ringing").await;
-        });
+        // Set status to ringing synchronously before returning response
+        let call = self.repo.update_status(call.id, "ringing").await?;
+        // Refresh participants after status update
+        let mut response: VideoCallResponse = call.clone().into();
+        response.participants = self.repo.get_participants(call.id).await.unwrap_or_default();
 
-        let mut response: VideoCallResponse = call.into();
-        response.participants = self.repo.get_participants(response.id).await.unwrap_or_default();
+        // The response is already prepared above after status update
 
         Ok(response)
     }

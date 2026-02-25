@@ -227,14 +227,7 @@ impl MessageRepository {
         Ok(count)
     }
 
-    pub async fn find_by_id(&self, message_id: Uuid) -> Result<Option<Message>> {
-        let message = sqlx::query_as::<_, Message>("SELECT * FROM messages WHERE id = $1")
-            .bind(message_id)
-            .fetch_optional(&self.pool)
-            .await?;
 
-        Ok(message)
-    }
 
     pub async fn update(
         &self,

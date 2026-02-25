@@ -50,18 +50,7 @@ impl std::fmt::Display for CallStatus {
     }
 }
 
-impl CallStatus {
-    pub fn as_str(&self) -> &str {
-        match self {
-            CallStatus::Initiating => "initiating",
-            CallStatus::Ringing => "ringing",
-            CallStatus::Active => "active",
-            CallStatus::Ended => "ended",
-            CallStatus::Missed => "missed",
-            CallStatus::Rejected => "rejected",
-        }
-    }
-}
+
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, ToSchema)]
 pub struct VideoCall {

@@ -13,7 +13,6 @@ use uuid::Uuid;
 pub struct MessageService {
     repo: MessageRepository,
     ws_manager: ConnectionManager,
-    notification_repo: NotificationRepository,
     group_service: GroupService,
     notification_helper: NotificationHelper,
     user_repo: crate::user::user_repository::UserRepository,
@@ -23,7 +22,6 @@ impl MessageService {
     pub fn new(
         repo: MessageRepository,
         ws_manager: ConnectionManager,
-        notification_repo: NotificationRepository,
         group_service: GroupService,
         notification_helper: NotificationHelper,
         user_repo: crate::user::user_repository::UserRepository,
@@ -31,7 +29,6 @@ impl MessageService {
         Self {
             repo,
             ws_manager,
-            notification_repo,
             group_service,
             notification_helper,
             user_repo,
