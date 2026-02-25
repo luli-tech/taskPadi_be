@@ -91,42 +91,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "tls://connect.ngs.global".to_string());
     tracing::info!("Connecting to NATS at {}...", nats_url);
     
-    let hardcoded_creds = r#"-----BEGIN NATS USER JWT-----
-eyJ0eXAiOiJKV1QiLCJhbGciOiJlZDI1NTE5LW5rZXkifQ.eyJqdGkiOiJPWlY3STRPTFRaN1pZTk80UVRCU1VSQVJXNUgzR09HQ1hXREJGUkNUR0hVUUVJUU1BRDNRIiwiaWF0IjoxNzcxNzk4MDc5LCJpc3MiOiJBRFlYWjY3WDVDWEY2M0xDSlBBVUZNSEYzNjcyR0ZGRkFYSEVBR0FGU1IzNVg3STZMSjVWUVBaUiIsIm5hbWUiOiJDTEkiLCJzdWIiOiJVQVBVTERVSklNS1dPR0VSNkg2RTcyUlUzN0VOUkxZRTY1NkVZUVRZMldIS0dEVlpTNkhNNEVGVCIsIm5hdHMiOnsicHViIjp7fSwic3ViIjp7fSwic3VicyI6LTEsImRhdGEiOi0xLCJwYXlsb2FkIjotMSwiaXNzdWVyX2FjY291bnQiOiJBQlpPVEpXU05DQU1RNllVUDRMRE40VEhIRVBLRlpRREFWVUhXV1U0QVFGVUg3WjZVTzZFUkxNVyIsInR5cGUiOiJ1c2VyIiwiY29kZSI6Mn19.YWsYxSnKRS8St4pFeupcwUs6Bii4X3hj40BKgHoRX5BnosLWjPPAXfAbshRPyyRAPXvSSVor6hBJ1MbhBgyzCw
-------END NATS USER JWT------
-
-************************* IMPORTANT *************************
-NKEY Seed printed below can be used to sign and prove identity.
-NKEYs are sensitive and should be treated as secrets.
-
------BEGIN USER NKEY SEED-----
-SUADYN3HVZY4CEGZAIMARZBF6XHSZASLGJPYLSDW4NXSFBPHNF4RIW3XJU
-------END USER NKEY SEED------
-
-*************************************************************"#;
+    // Load credentials from environment properly
+    let creds_str = std::env::var("NATS_CREDS").unwrap_or_default();
+    let unescaped_creds = creds_str.replace("\\n", "\n").replace("\r", "");
 
     let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
-    if let Err(e) = std::fs::write(&path, hardcoded_creds.replace("\r", "")) {
+    if let Err(e) = std::fs::write(&path, &unescaped_creds) {
         tracing::error!("Failed to write temp credentials file: {}", e);
     }
     
-    let creds_path = path.to_string_lossy().to_string();
-
-    let options = match async_nats::ConnectOptions::new().credentials(&creds_path) {
+    let options = match async_nats::ConnectOptions::with_credentials_file(&path).await {
         Ok(opts) => opts,
         Err(e) => {
-            tracing::error!("Failed to parse NATS credentials: {}", e);
+            tracing::error!("Failed to parse NATS credentials from NATS_CREDS: {}", e);
             async_nats::ConnectOptions::new()
         }
     };
 
     let nats_client = match async_nats::connect_with_options(&nats_url, options).await {
         Ok(client) => {
-            tracing::info!("✓ Connected to NATS — media relay enabled");
+            tracing::info!("✓ Connected to NATS Cloud successfully!");
+            
+            // 👂 Start Worker Subscriber (Background Jobs / Async processing)
+            let worker_client = client.clone();
+            tokio::spawn(async move {
+                tracing::info!("👂 NATS Worker subscriber started in background...");
+                // Note: futures::StreamExt is needed for `sub.next().await`
+                use futures::StreamExt; 
+                
+                if let Ok(mut sub) = worker_client.subscribe("events.>".into()).await {
+                    tracing::info!("👂 NATS Worker listening on 'events.>' for background tasks");
+                    while let Some(msg) = sub.next().await {
+                        if let Ok(text) = std::str::from_utf8(&msg.payload) {
+                            tracing::info!("📦 Background Worker Received on '{}': {}", msg.subject, text);
+                        } else {
+                            tracing::info!("📦 Background Worker Received binary on '{}': {} bytes", msg.subject, msg.payload.len());
+                        }
+                    }
+                } else {
+                    tracing::error!("❌ NATS Worker failed to subscribe to events.>");
+                }
+            });
+
             Some(client)
         }
         Err(e) => {
-            tracing::warn!("Failed to connect to NATS: {} — media relay disabled", e);
+            tracing::warn!("Failed to connect to NATS: {} — NATS features disabled", e);
             None
         }
     };

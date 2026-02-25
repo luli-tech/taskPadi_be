@@ -338,6 +338,31 @@ pub fn create_router(state: AppState) -> Router {
             auth_middleware,
         ));
 
+    // NATS integration testing route (from ChatGPT concept)
+    let nats_test_route = Router::new().route(
+        "/nats-publish",
+        post(|axum::extract::State(state): axum::extract::State<AppState>, axum::Json(payload): axum::Json<serde_json::Value>| async move {
+            if let Some(nats) = &state.nats_client {
+                let data = serde_json::to_vec(&payload).unwrap_or_default();
+                match nats.publish("events.test".into(), data.into()).await {
+                    Ok(_) => axum::response::IntoResponse::into_response((
+                        axum::http::StatusCode::OK,
+                        "Successfully published to NATS 'events.test'",
+                    )),
+                    Err(e) => axum::response::IntoResponse::into_response((
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to publish to NATS: {}", e),
+                    )),
+                }
+            } else {
+                axum::response::IntoResponse::into_response((
+                    axum::http::StatusCode::SERVICE_UNAVAILABLE,
+                    "NATS client is temporarily unavailable or not configured",
+                ))
+            }
+        }),
+    );
+
     let api_routes = Router::new()
         .nest("/auth", auth_routes)
         .nest("/tasks", task_routes)
@@ -347,7 +372,8 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/messages", message_routes)
         .nest("/groups", group_routes)
         .nest("/video-calls", video_call_routes)
-        .merge(ws_routes);
+        .merge(ws_routes)
+        .merge(nats_test_route);
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
