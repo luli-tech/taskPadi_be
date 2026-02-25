@@ -320,10 +320,10 @@ pub fn create_router(state: AppState) -> Router {
         .route("/:call_id/reject", post(video_call_handlers::reject_call))
         .route("/:call_id/end", post(video_call_handlers::end_call))
         .route("/:call_id/participants", post(video_call_handlers::add_participant))
-        // ── videocall-rs NATS media relay WebSocket ──────────────────────────
+        // ── videocall-rs Redis media relay WebSocket ─────────────────────────
         // Binary WebSocket: clients send/receive raw media frames (protobuf)
-        // that are routed through NATS to all other call participants.
-        // Requires NATS_URL to be set — returns 503 otherwise.
+        // that are routed through Redis to all other call participants.
+        // Requires REDIS_URL to be set — returns 503 otherwise.
         .route("/:call_id/ws", get(video_call_handlers::join_call_media))
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
@@ -338,26 +338,34 @@ pub fn create_router(state: AppState) -> Router {
             auth_middleware,
         ));
 
-    // NATS integration testing route (from ChatGPT concept)
-    let nats_test_route = Router::new().route(
-        "/nats-publish",
+    // Redis integration testing route
+    let redis_test_route = Router::new().route(
+        "/redis-publish",
         post(|axum::extract::State(state): axum::extract::State<AppState>, axum::Json(payload): axum::Json<serde_json::Value>| async move {
-            if let Some(nats) = &state.nats_client {
+            if let Some(client) = &state.redis_client {
+                let mut conn = match client.get_multiplexed_async_connection().await {
+                    Ok(c) => c,
+                    Err(e) => return axum::response::IntoResponse::into_response((
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Failed to get Redis connection: {}", e),
+                    )),
+                };
                 let data = serde_json::to_vec(&payload).unwrap_or_default();
-                match nats.publish("events.test", data.into()).await {
+                use redis::AsyncCommands;
+                match conn.publish::<_, _, ()>("events.test", data).await {
                     Ok(_) => axum::response::IntoResponse::into_response((
                         axum::http::StatusCode::OK,
-                        "Successfully published to NATS 'events.test'",
+                        "Successfully published to Redis 'events.test'",
                     )),
                     Err(e) => axum::response::IntoResponse::into_response((
                         axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                        format!("Failed to publish to NATS: {}", e),
+                        format!("Failed to publish to Redis: {}", e),
                     )),
                 }
             } else {
                 axum::response::IntoResponse::into_response((
                     axum::http::StatusCode::SERVICE_UNAVAILABLE,
-                    "NATS client is temporarily unavailable or not configured",
+                    "Redis client is temporarily unavailable or not configured",
                 ))
             }
         }),
@@ -373,7 +381,7 @@ pub fn create_router(state: AppState) -> Router {
         .nest("/groups", group_routes)
         .nest("/video-calls", video_call_routes)
         .merge(ws_routes)
-        .merge(nats_test_route);
+        .merge(redis_test_route);
 
     Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))

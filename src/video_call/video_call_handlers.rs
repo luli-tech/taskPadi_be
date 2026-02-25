@@ -366,7 +366,7 @@ pub async fn join_call_media(
         }
     }
 
-    // Upgrade to WebSocket and hand off to the NATS relay session
+    // Upgrade to WebSocket and hand off to the Redis relay session
     ws.on_upgrade(move |socket| {
         run_media_session(
             MediaSessionConfig {

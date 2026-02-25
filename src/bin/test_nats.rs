@@ -1,7 +1,7 @@
 use async_nats::ConnectOptions;
 use axum::{routing::post, Router, Json};
 use serde::{Deserialize, Serialize};
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use futures::StreamExt;
 use std::fs;
