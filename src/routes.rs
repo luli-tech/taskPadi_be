@@ -344,7 +344,7 @@ pub fn create_router(state: AppState) -> Router {
         post(|axum::extract::State(state): axum::extract::State<AppState>, axum::Json(payload): axum::Json<serde_json::Value>| async move {
             if let Some(nats) = &state.nats_client {
                 let data = serde_json::to_vec(&payload).unwrap_or_default();
-                match nats.publish("events.test".into(), data.into()).await {
+                match nats.publish("events.test", data.into()).await {
                     Ok(_) => axum::response::IntoResponse::into_response((
                         axum::http::StatusCode::OK,
                         "Successfully published to NATS 'events.test'",

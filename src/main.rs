@@ -119,7 +119,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Note: futures::StreamExt is needed for `sub.next().await`
                 use futures::StreamExt; 
                 
-                if let Ok(mut sub) = worker_client.subscribe("events.>".into()).await {
+                if let Ok(mut sub) = worker_client.subscribe("events.>").await {
                     tracing::info!("👂 NATS Worker listening on 'events.>' for background tasks");
                     while let Some(msg) = sub.next().await {
                         if let Ok(text) = std::str::from_utf8(&msg.payload) {
