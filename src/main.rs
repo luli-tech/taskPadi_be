@@ -98,9 +98,9 @@ tracing::info!("Using Redis URL: {}", redis_url);
         Ok(client) => {
             tracing::info!("✓ Connected to Redis successfully!");
             // Verify connection with a ping
-            match client.get_async_connection().await {
+            match client.get_multiplexed_async_connection().await {
                 Ok(mut conn) => {
-                    match redis::cmd("PING").query_async::<_, ()>(&mut conn).await {
+                    match redis::cmd("PING").query_async::<()>(&mut conn).await {
                         Ok(_) => tracing::info!("✅ Redis ping successful – Redis is up and running"),
                         Err(ping_err) => tracing::error!("❌ Redis ping failed: {}", ping_err),
                     }
