@@ -311,16 +311,16 @@ pub async fn add_participant(
 // GET /api/video-calls/{call_id}/ws
 //
 // After a call is accepted (status = "active"), both participants connect here.
-// This endpoint upgrades to WebSocket and enters the NATS-based media relay loop:
+// This endpoint upgrades to WebSocket and enters the Redis-based media relay loop:
 //
-//   Client sends binary frames  →  published to NATS `call.{call_id}.{user_id}`
-//   NATS delivers frames        →  forwarded as binary to this client's WebSocket
+//   Client sends binary frames  →  published to Redis `call.{call_id}.{user_id}`
+//   Redis delivers frames       →  forwarded as binary to this client's WebSocket
 //
 // No WebRTC. No SDP. No ICE. The client is responsible for encoding media into
 // binary frames (e.g. protobuf-wrapped audio/video, compatible with videocall-rs
 // client libraries).
 //
-// Returns 503 if NATS is not configured (NATS_URL env var not set).
+// Returns 503 if Redis is not configured (REDIS_URL env var not set).
 // ─────────────────────────────────────────────────────────────────────────────
 pub async fn join_call_media(
     ws: WebSocketUpgrade,
@@ -328,13 +328,13 @@ pub async fn join_call_media(
     AuthUser(user_id): AuthUser,
     Path(call_id): Path<Uuid>,
 ) -> impl IntoResponse {
-    // Require NATS to be available
-    let nats = match state.nats_client.clone() {
-        Some(n) => n,
+    // Require Redis to be available
+    let redis_client = match state.redis_client.clone() {
+        Some(r) => r,
         None => {
             return (
                 StatusCode::SERVICE_UNAVAILABLE,
-                "Media relay is not configured (NATS_URL not set)",
+                "Media relay is not configured (REDIS_URL not set)",
             )
                 .into_response();
         }
@@ -372,7 +372,7 @@ pub async fn join_call_media(
             MediaSessionConfig {
                 call_id,
                 user_id,
-                nats,
+                redis_client,
             },
             socket,
         )

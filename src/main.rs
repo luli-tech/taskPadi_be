@@ -86,57 +86,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create WebSocket connection manager
     let ws_connections = crate::websocket::ConnectionManager::new();
 
-    // Connect to NATS for media relay (videocall-rs architecture)
-    // App boots normally without NATS — media relay endpoint returns 503 when absent.
-    let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "tls://connect.ngs.global".to_string());
-    tracing::info!("Connecting to NATS at {}...", nats_url);
+    // Connect to Redis for media relay (videocall-rs architecture)
+    // App boots normally without Redis — media relay endpoint returns 503 when absent.
+    let redis_url = std::env::var("REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1/".to_string());
+    tracing::info!("Connecting to Redis at {}...", redis_url);
     
-    // Load credentials from environment properly
-    let creds_str = std::env::var("NATS_CREDS").unwrap_or_default();
-    let unescaped_creds = creds_str.replace("\\n", "\n").replace("\r", "");
-
-    let path = std::env::temp_dir().join(format!("nats_{}.creds", std::process::id()));
-    if let Err(e) = std::fs::write(&path, &unescaped_creds) {
-        tracing::error!("Failed to write temp credentials file: {}", e);
-    }
-    
-    let options = match async_nats::ConnectOptions::with_credentials_file(&path).await {
-        Ok(opts) => opts,
-        Err(e) => {
-            tracing::error!("Failed to parse NATS credentials from NATS_CREDS: {}", e);
-            async_nats::ConnectOptions::new()
-        }
-    };
-
-    let nats_client = match async_nats::connect_with_options(&nats_url, options).await {
+    let redis_client = match redis::Client::open(redis_url.clone()) {
         Ok(client) => {
-            tracing::info!("✓ Connected to NATS Cloud successfully!");
-            
-            // 👂 Start Worker Subscriber (Background Jobs / Async processing)
-            let worker_client = client.clone();
-            tokio::spawn(async move {
-                tracing::info!("👂 NATS Worker subscriber started in background...");
-                // Note: futures::StreamExt is needed for `sub.next().await`
-                use futures::StreamExt; 
-                
-                if let Ok(mut sub) = worker_client.subscribe("events.>").await {
-                    tracing::info!("👂 NATS Worker listening on 'events.>' for background tasks");
-                    while let Some(msg) = sub.next().await {
-                        if let Ok(text) = std::str::from_utf8(&msg.payload) {
-                            tracing::info!("📦 Background Worker Received on '{}': {}", msg.subject, text);
-                        } else {
-                            tracing::info!("📦 Background Worker Received binary on '{}': {} bytes", msg.subject, msg.payload.len());
-                        }
-                    }
-                } else {
-                    tracing::error!("❌ NATS Worker failed to subscribe to events.>");
-                }
-            });
-
+            tracing::info!("✓ Connected to Redis successfully!");
             Some(client)
         }
         Err(e) => {
-            tracing::warn!("Failed to connect to NATS: {} — NATS features disabled", e);
+            tracing::warn!("Failed to create Redis client for {}: {} — Media relay features disabled", redis_url, e);
             None
         }
     };
@@ -176,6 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let video_call_service = crate::video_call::video_call_service::VideoCallService::new(
         video_call_repository.clone(),
         ws_connections.clone(),
+        user_repository.clone(),
+        group_repository.clone(),
     );
     let admin_service = crate::admin::service::AdminService::new(admin_repository.clone());
 
@@ -187,7 +150,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notification_tx: notification_tx.clone(),
         task_tx: task_tx.clone(),
         ws_connections,
-        nats_client,
+        redis_client,
         refresh_token_repository,
         user_repository,
         task_repository,

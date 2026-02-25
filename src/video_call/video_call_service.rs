@@ -4,16 +4,30 @@ use crate::video_call::video_call_repository::VideoCallRepository;
 use crate::websocket::ConnectionManager;
 use crate::websocket::types::WsMessage;
 use uuid::Uuid;
+use crate::group::group_repository::GroupRepository;
+use crate::user::user_repository::UserRepository;
 
 #[derive(Clone)]
 pub struct VideoCallService {
     repo: VideoCallRepository,
     ws_manager: ConnectionManager,
+    user_repo: UserRepository,
+    group_repo: GroupRepository,
 }
 
 impl VideoCallService {
-    pub fn new(repo: VideoCallRepository, ws_manager: ConnectionManager) -> Self {
-        Self { repo, ws_manager }
+    pub fn new(
+        repo: VideoCallRepository,
+        ws_manager: ConnectionManager,
+        user_repo: UserRepository,
+        group_repo: GroupRepository,
+    ) -> Self {
+        Self {
+            repo,
+            ws_manager,
+            user_repo,
+            group_repo,
+        }
     }
 
     pub async fn initiate_call(
@@ -63,9 +77,17 @@ impl VideoCallService {
 
         // For direct calls: notify the receiver
         if let Some(r_id) = receiver_id {
+            let caller_info = self
+                .user_repo
+                .find_by_id(caller_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Caller not found".to_string()))?;
+            
             let ws_message = WsMessage::CallInitiated(crate::websocket::types::CallInitiatedPayload {
                 call_id: call.id,
                 caller_id,
+                caller_username: caller_info.username,
+                caller_avatar_url: caller_info.avatar_url,
                 receiver_id: r_id,
                 call_type: call_type.clone(),
                 media_ws_path: format!("/api/video-calls/{}/ws", call.id),
@@ -74,6 +96,36 @@ impl VideoCallService {
 
             // Pre-add receiver as participant (status ringing)
             let _ = self.repo.add_participant(call.id, r_id, "participant").await;
+        }
+
+        // For group calls: notify all members
+        if let Some(g_id) = group_id {
+            let caller_info = self
+                .user_repo
+                .find_by_id(caller_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound("Caller not found".to_string()))?;
+            let members = self.group_repo.get_group_members(g_id).await?;
+            
+            for (member, _, _) in members {
+                if member.user_id == caller_id {
+                    continue;
+                }
+                
+                let ws_message = WsMessage::CallInitiated(crate::websocket::types::CallInitiatedPayload {
+                    call_id: call.id,
+                    caller_id,
+                    caller_username: caller_info.username.clone(),
+                    caller_avatar_url: caller_info.avatar_url.clone(),
+                    receiver_id: member.user_id,
+                    call_type: call_type.clone(),
+                    media_ws_path: format!("/api/video-calls/{}/ws", call.id),
+                });
+                self.ws_manager.send_to_user(&member.user_id, ws_message);
+
+                // Pre-add member as participant
+                let _ = self.repo.add_participant(call.id, member.user_id, "participant").await;
+            }
         }
 
         // Update status to ringing
@@ -131,10 +183,18 @@ impl VideoCallService {
         let call = self.repo.start_call(call_id).await?;
 
         // Notify caller that call was accepted
+        let receiver_info = self
+            .user_repo
+            .find_by_id(user_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Receiver not found".to_string()))?;
+
         let ws_message = WsMessage::CallAccepted(crate::websocket::types::CallAcceptedPayload {
             call_id: call.id,
             caller_id: call.caller_id,
             receiver_id: call.receiver_id.unwrap_or(user_id),
+            receiver_username: receiver_info.username,
+            receiver_avatar_url: receiver_info.avatar_url,
             call_type: call.call_type.clone(),
             media_ws_path: format!("/api/video-calls/{}/ws", call.id),
         });
@@ -169,9 +229,17 @@ impl VideoCallService {
         self.repo.add_participant(call_id, new_participant_id, "participant").await?;
 
         // Notify the new participant that they have been added to the call
+        let inviter_info = self
+            .user_repo
+            .find_by_id(inviter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Inviter not found".to_string()))?;
+
         let ws_message = WsMessage::CallInitiated(crate::websocket::types::CallInitiatedPayload {
             call_id,
             caller_id: inviter_id,
+            caller_username: inviter_info.username,
+            caller_avatar_url: inviter_info.avatar_url,
             receiver_id: new_participant_id,
             call_type: call.call_type.clone(),
             media_ws_path: format!("/api/video-calls/{}/ws", call_id),

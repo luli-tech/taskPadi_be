@@ -120,6 +120,8 @@ pub struct ErrorPayload {
 pub struct CallInitiatedPayload {
     pub call_id: Uuid,
     pub caller_id: Uuid,
+    pub caller_username: String,
+    pub caller_avatar_url: Option<String>,
     pub receiver_id: Uuid,
     pub call_type: String, // "video" or "voice"
     /// Relative URL for the media relay WebSocket.
@@ -136,6 +138,8 @@ pub struct CallAcceptedPayload {
     pub call_id: Uuid,
     pub caller_id: Uuid,
     pub receiver_id: Uuid,
+    pub receiver_username: String,
+    pub receiver_avatar_url: Option<String>,
     pub call_type: String,
     /// Relative URL for the media relay WebSocket.
     pub media_ws_path: String,

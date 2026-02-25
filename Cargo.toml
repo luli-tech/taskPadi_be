@@ -50,5 +50,5 @@ tokio-stream = { version = "0.1.17", features = ["sync"] }
 # WebSocket and concurrent data structures
 dashmap = "6.1"
 
-# NATS pub/sub for media relay (videocall-rs architecture)
-async-nats = "0.35"
+# Redis pub/sub for media relay (videocall-rs architecture)
+redis = { version = "0.27", features = ["tokio-comp", "async-std-comp"] }
