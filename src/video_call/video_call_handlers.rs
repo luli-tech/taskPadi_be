@@ -306,19 +306,18 @@ pub async fn add_participant(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WebSocket media relay endpoint (videocall-rs architecture)
+// WebSocket WebRTC signaling endpoint
 //
 // GET /api/video-calls/{call_id}/ws
 //
 // After a call is accepted (status = "active"), both participants connect here.
-// This endpoint upgrades to WebSocket and enters the Redis-based media relay loop:
+// This endpoint upgrades to WebSocket and enters the Redis-based signaling relay loop:
 //
-//   Client sends binary frames  →  published to Redis `call.{call_id}.{user_id}`
-//   Redis delivers frames       →  forwarded as binary to this client's WebSocket
+//   Client sends WebRTC JSON (SDP/ICE) →  published to Redis `webrtc_call.{call_id}.{user_id}`
+//   Redis delivers frames              →  forwarded as text to this client's WebSocket
 //
-// No WebRTC. No SDP. No ICE. The client is responsible for encoding media into
-// binary frames (e.g. protobuf-wrapped audio/video, compatible with videocall-rs
-// client libraries).
+// The client is responsible for establishing an RTCPeerConnection using these
+// signaling messages.
 //
 // Returns 503 if Redis is not configured (REDIS_URL env var not set).
 // ─────────────────────────────────────────────────────────────────────────────
