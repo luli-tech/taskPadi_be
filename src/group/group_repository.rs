@@ -89,8 +89,8 @@ impl GroupRepository {
 
     pub async fn is_creator(&self, group_id: Uuid, user_id: Uuid) -> Result<bool> {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM group_members 
-             WHERE group_id = $1 AND user_id = $2 AND role = 'creator'"
+            "SELECT COUNT(*) FROM groups 
+             WHERE id = $1 AND creator_id = $2"
         )
         .bind(group_id)
         .bind(user_id)
@@ -128,26 +128,31 @@ impl GroupRepository {
     }
 
     pub async fn get_group_members(&self, group_id: Uuid) -> Result<Vec<(GroupMember, String, Option<String>)>> {
-        // Query group members and user info separately, then combine
-        let members: Vec<GroupMember> = sqlx::query_as::<_, GroupMember>(
-            "SELECT * FROM group_members 
-             WHERE group_id = $1
-             ORDER BY joined_at ASC"
+        let membersData = sqlx::query(
+            r#"
+            SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.joined_at, u.username, u.avatar_url
+            FROM group_members gm
+            JOIN users u ON gm.user_id = u.id
+            WHERE gm.group_id = $1
+            ORDER BY gm.joined_at ASC
+            "#
         )
         .bind(group_id)
         .fetch_all(&self.pool)
         .await?;
 
         let mut result = Vec::new();
-        for member in members {
-            // Get user info for each member
-            let (username, avatar_url): (String, Option<String>) = sqlx::query_as(
-                "SELECT username, avatar_url FROM users WHERE id = $1"
-            )
-            .bind(member.user_id)
-            .fetch_one(&self.pool)
-            .await?;
-
+        for row in membersData {
+            use sqlx::Row;
+            let member = GroupMember {
+                id: row.get("id"),
+                group_id: row.get("group_id"),
+                user_id: row.get("user_id"),
+                role: row.get("role"),
+                joined_at: row.get("joined_at"),
+            };
+            let username: String = row.get("username");
+            let avatar_url: Option<String> = row.get("avatar_url");
             result.push((member, username, avatar_url));
         }
 

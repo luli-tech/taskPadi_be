@@ -106,6 +106,11 @@ pub async fn run_media_session(config: MediaSessionConfig, socket: WebSocket) {
         while let Some(msg_result) = ws_receiver.next().await {
             match msg_result {
                 Ok(Message::Text(text)) => {
+                    // Ignore keep-alive pings from the frontend
+                    if text.contains("\"ping\"") {
+                        continue;
+                    }
+                    
                     // Publish WebRTC JSON signaling
                     if let Err(e) = redis_pub.publish::<_, _, ()>(&pub_subject, text).await {
                         error!("Redis publish error in call {call_id}: {e}");

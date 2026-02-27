@@ -62,10 +62,11 @@ impl VideoCallService {
         // Check for an existing active direct call (only for 1-on-1)
         if let Some(r_id) = receiver_id {
             if let Ok(Some(active_call)) = self.repo.find_active_call(caller_id, r_id).await {
-                return Err(AppError::BadRequest(format!(
-                    "There is already an active call in progress (call ID: {})",
-                    active_call.id
-                )));
+                // Temporarily disabled for ease of testing P2P video calls
+                // return Err(AppError::BadRequest(format!(
+                //     "There is already an active call in progress (call ID: {})",
+                //     active_call.id
+                // )));
             }
         }
 
@@ -77,6 +78,14 @@ impl VideoCallService {
 
         // For direct calls: notify the receiver
         if let Some(r_id) = receiver_id {
+            // Check if the receiver is online
+            if !self.ws_manager.is_user_online(&r_id) {
+                // If offline, we can immediately mark the call as rejected or ended
+                // This prevents the caller from being stuck on "Calling..." when the other person isn't there
+                self.repo.update_status(call.id, "ended").await?;
+                return Err(AppError::BadRequest("User is offline or not reachable".to_string()));
+            }
+
             let caller_info = self
                 .user_repo
                 .find_by_id(caller_id)
