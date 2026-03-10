@@ -128,7 +128,7 @@ impl GroupRepository {
     }
 
     pub async fn get_group_members(&self, group_id: Uuid) -> Result<Vec<(GroupMember, String, Option<String>)>> {
-        let membersData = sqlx::query(
+        let members_data = sqlx::query(
             r#"
             SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.joined_at, u.username, u.avatar_url
             FROM group_members gm
@@ -142,7 +142,7 @@ impl GroupRepository {
         .await?;
 
         let mut result = Vec::new();
-        for row in membersData {
+        for row in members_data {
             use sqlx::Row;
             let member = GroupMember {
                 id: row.get("id"),

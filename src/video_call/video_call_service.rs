@@ -61,7 +61,7 @@ impl VideoCallService {
 
         // Check for an existing active direct call (only for 1-on-1)
         if let Some(r_id) = receiver_id {
-            if let Ok(Some(active_call)) = self.repo.find_active_call(caller_id, r_id).await {
+            if let Ok(Some(_active_call)) = self.repo.find_active_call(caller_id, r_id).await {
                 // Temporarily disabled for ease of testing P2P video calls
                 // return Err(AppError::BadRequest(format!(
                 //     "There is already an active call in progress (call ID: {})",
