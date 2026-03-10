@@ -206,6 +206,45 @@ async fn process_client_message(
             }
         }
 
+        ClientMessage::NotifyRinging { call_id } => {
+            // Check if call exists and user is part of it
+            if let Ok(call) = state.video_call_service.get_call(call_id, user_id).await {
+                // If caller is not me, it means I am receiving the call
+                if call.caller_id != user_id {
+                    let ringing_msg = WsMessage::ReceiverRinging(crate::websocket::types::ReceiverRingingPayload {
+                        call_id,
+                        receiver_id: user_id,
+                    });
+                    state.ws_connections.send_to_user(&call.caller_id, ringing_msg);
+                }
+            }
+        }
+
+        ClientMessage::UpdateConnectionState { call_id, state: conn_state } => {
+            if let Ok(call) = state.video_call_service.get_call(call_id, user_id).await {
+                let msg = WsMessage::ConnectionStateUpdated(crate::websocket::types::ConnectionStateUpdatedPayload {
+                    call_id,
+                    user_id,
+                    state: conn_state,
+                });
+                
+                // Notify everyone except the person who sent this update
+                if call.caller_id != user_id {
+                    state.ws_connections.send_to_user(&call.caller_id, msg.clone());
+                }
+                if let Some(r_id) = call.receiver_id {
+                    if r_id != user_id {
+                        state.ws_connections.send_to_user(&r_id, msg.clone());
+                    }
+                }
+                for p in call.participants {
+                    if p.user_id != user_id && p.user_id != call.caller_id && Some(p.user_id) != call.receiver_id {
+                        state.ws_connections.send_to_user(&p.user_id, msg.clone());
+                    }
+                }
+            }
+        }
+
         // ── Keep-alive ────────────────────────────────────────────────────────
         ClientMessage::Ping => {
             let _ = _tx.send(WsMessage::Pong);

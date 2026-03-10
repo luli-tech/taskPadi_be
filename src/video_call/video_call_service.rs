@@ -145,6 +145,38 @@ impl VideoCallService {
         response.participants = self.repo.get_participants(call.id).await.unwrap_or_default();
 
         // The response is already prepared above after status update
+        
+        let repo_clone = self.repo.clone();
+        let ws_manager_clone = self.ws_manager.clone();
+        let timeout_call_id = call.id;
+
+        tokio::spawn(async move {
+            // Wait for 45 seconds
+            tokio::time::sleep(std::time::Duration::from_secs(45)).await;
+
+            if let Ok(Some(current_call)) = repo_clone.find_by_id(timeout_call_id).await {
+                // If it's still ringing or initiating, mark as missed
+                if current_call.status == "ringing" || current_call.status == "initiating" {
+                    let _ = repo_clone.update_status(timeout_call_id, "missed").await;
+
+                    let msg = WsMessage::CallEnded(crate::websocket::types::CallEndedPayload {
+                        call_id: timeout_call_id,
+                        ended_by: current_call.caller_id, // System ends it on behalf of caller essentially
+                    });
+
+                    // Broadcast to participants
+                    ws_manager_clone.send_to_user(&current_call.caller_id, msg.clone());
+                    if let Some(r_id) = current_call.receiver_id {
+                        ws_manager_clone.send_to_user(&r_id, msg.clone());
+                    }
+                    if let Ok(participants) = repo_clone.get_participants(timeout_call_id).await {
+                        for p in participants {
+                            ws_manager_clone.send_to_user(&p.user_id, msg.clone());
+                        }
+                    }
+                }
+            }
+        });
 
         Ok(response)
     }

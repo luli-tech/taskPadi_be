@@ -41,6 +41,12 @@ pub enum WsMessage {
     /// Sent to all participants when the call ends.
     CallEnded(CallEndedPayload),
 
+    /// Sent to the caller when the receiver's device confirms it is ringing.
+    ReceiverRinging(ReceiverRingingPayload),
+
+    /// Sent to participants when a user's connection state changes (e.g., poor connection / reconnecting).
+    ConnectionStateUpdated(ConnectionStateUpdatedPayload),
+
     // ── System ────────────────────────────────────────────────────────────────
     Error(ErrorPayload),
     Ping,
@@ -158,6 +164,19 @@ pub struct CallEndedPayload {
     pub ended_by: Uuid,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ReceiverRingingPayload {
+    pub call_id: Uuid,
+    pub receiver_id: Uuid,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ConnectionStateUpdatedPayload {
+    pub call_id: Uuid,
+    pub user_id: Uuid,
+    pub state: String, // "connecting", "connected", "reconnecting", "failed"
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Client-to-server messages (signaling only)
 //
@@ -191,6 +210,13 @@ pub enum ClientMessage {
     },
     EndCall {
         call_id: Uuid,
+    },
+    NotifyRinging {
+        call_id: Uuid,
+    },
+    UpdateConnectionState {
+        call_id: Uuid,
+        state: String, // "connecting", "connected", "reconnecting", "failed"
     },
 
     // Keep-alive
