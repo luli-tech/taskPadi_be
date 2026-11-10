@@ -6,7 +6,7 @@ use crate::{
     auth::{
         auth_dto::{AuthResponse, LoginRequest, RefreshTokenRequest, RefreshTokenResponse, RegisterRequest},
         auth_handlers,
-    },
+    },cors
     message::{
         message_dto::{ConversationUser, SendMessageRequest, UpdateMessageRequest},
         message_handlers,
@@ -193,6 +193,7 @@ pub fn create_router(state: AppState) -> Router {
         .allow_origin(AllowOrigin::list([
             "http://localhost:3000".parse().unwrap(),
             "https://taskpadi-fe-1.onrender.com".parse().unwrap(),
+            "https://task-manager-84ag.onrender.com".parse().unwrap(),
             "https://preview-task-manager-web-app-kzmr08fjkyg1tq51kj1l.vusercontent.net"
             .parse()
             .unwrap(),
