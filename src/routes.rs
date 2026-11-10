@@ -6,7 +6,7 @@ use crate::{
     auth::{
         auth_dto::{AuthResponse, LoginRequest, RefreshTokenRequest, RefreshTokenResponse, RegisterRequest},
         auth_handlers,
-    },cors
+    },
     message::{
         message_dto::{ConversationUser, SendMessageRequest, UpdateMessageRequest},
         message_handlers,
